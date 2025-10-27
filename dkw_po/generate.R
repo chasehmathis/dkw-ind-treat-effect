@@ -68,7 +68,7 @@ generate_perm <- function(nperm, data_truth, j = 0) {
 #' @param alpha Significance level
 #' @param nsim Number of simulations (currently unused, kept for compatibility)
 #' @return List containing bounds, data, and observed outcomes
-get_bounds <- function(m = 300, p = 0.6, alpha = 0.01, nsim = 1e3) {
+get_bounds <- function(m = 3000, p = 0.6, alpha = 0.1, nsim = 1e3) {
   
   # Generate true sample data
   data_truth <- generate_true_sample(m, p = p)
@@ -91,11 +91,11 @@ get_bounds <- function(m = 300, p = 0.6, alpha = 0.01, nsim = 1e3) {
   eps1 <- sqrt(-log((alpha/2)/4)*8/(m*p))
   eps0 <- sqrt(-log((alpha/2)/4)*8/(m*(1-p)))
   eps <- eps1 + eps0
-  
-  # regular eps
-  eps1 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * p)))
-  eps0 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * (1-p))))
-  eps <- eps1 + eps0
+  browser()
+  # regular eps (tight)
+  # eps1 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * p)))
+  # eps0 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * (1-p))))
+  # eps <- eps1 + eps0
   
   u_bound_1 <- pmin(ecdf_Y1_sorted +eps, 1)
   l_bound_1 <- pmax(ecdf_Y1_sorted -eps, 0)
