@@ -3,6 +3,7 @@
 set.seed(123)
 source("generate.R")
 source("bounds.R")
+library(RIQITE)
 compare_makarov_quantile <- function(params) {
   result <- do.call(get_bounds, params)
   bounds <- result$bounds
@@ -18,7 +19,7 @@ compare_makarov_quantile <- function(params) {
   quant_true <- quantile(data$tau, 0.5)
   conf_int_idx <- which(diff_bounds[,1] < 0.5 & diff_bounds[,2] > 0.5)
   conf_int_us <- list(lower = min(diff_bounds[conf_int_idx, 3]), upper = max(diff_bounds[conf_int_idx, 3]))
-  browser()
+  conf_riqite <- ci_quantile(data$Z, data$Y, 0.5, nperm = 1e4, alpha = 0.2)
   if(abs(conf_int_us$lower - naive_l) < 0.25) {
     conf_int_us$lower <- -Inf
   }
@@ -27,6 +28,8 @@ compare_makarov_quantile <- function(params) {
   }
   width_us <- conf_int_us$upper - conf_int_us$lower
   cover_us <- quant_true > conf_int_us$lower & quant_true < conf_int_us$upper
+  width_riqite <- conf_riqite$upper - conf_riqite$lower
+  cover_us <- quant_true > conf_riqite$lower & quant_true < conf_riqite$upper
 
   return(
     data.frame(
@@ -46,18 +49,19 @@ compare_makarov_quantile <- function(params) {
 
 set.seed(123) # for reproducibility
 NSIM <- 100 # or set to desired number of simulations
-m_values <- c(5e3, 1e4, 1e5)
+m_values <- c(1e3,2e3)
 sim_results <- data.frame()
 
 for (size in m_values) {
   params <- list(
     m = size,
     p = 0.5,
-    alpha = 0.1,
+    alpha = 0.2,
     heterogeneity = 3,
     outcome_model = rlnorm,
-    tight_bounds = TRUE
+    tight_bounds = FALSE
   )
+  
   for (sim in 1:NSIM) {
     print(sim)
     sim_results <- rbind(sim_results, compare_makarov_quantile(params))

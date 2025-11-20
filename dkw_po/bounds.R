@@ -59,8 +59,8 @@ marakov_bounds_t <- function(t, bounds, obs_Y1, obs_Y0, minY = NULL, maxY = NULL
   if (is.null(maxY)) maxY <- max(obs_Y1)
   
   L <- 15
-  min_grid <- min(obs_Y1) - L - abs(t)
-  max_grid <- max(obs_Y1) + L + abs(t)
+  min_grid <- minY - L - abs(t)
+  max_grid <- maxY + L + abs(t)
   
   x <- seq(min_grid, max_grid, by = 0.005)
 
