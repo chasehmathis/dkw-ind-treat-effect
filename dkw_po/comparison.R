@@ -53,24 +53,26 @@ set.seed(123) # for reproducibility
 NSIM <- 20 # or set to desired number of simulations
 m_values <- c(1e3,2e3)
 sim_results <- data.frame()
-
-for(alpha in c(0.2, 0.3, 0.4)){
-  for (size in m_values) {
-    params <- list(
-      m = size,
-      p = 0.5,
-      alpha = alpha,
-      heterogeneity = 3,
-      outcome_model = rlnorm,
-      tight_bounds = FALSE
-    )
-    
-    for (sim in 1:NSIM) {
-      print(sim)
-      sim_results <- rbind(sim_results, compare_makarov_quantile(params))
+for(tight_bounds in c(FALSE, TRUE)){
+  for(alpha in c(0.2, 0.3, 0.4)){
+    for (size in m_values) {
+      params <- list(
+        m = size,
+        p = 0.5,
+        alpha = alpha,
+        heterogeneity = 3,
+        outcome_model = rlnorm,
+        tight_bounds = FALSE
+      )
+      
+      for (sim in 1:NSIM) {
+        print(sim)
+        sim_results <- rbind(sim_results, compare_makarov_quantile(params))
+      }
     }
   }
 }
+
 
 sim_results |> 
   dplyr::group_by(m,alpha) |> 
