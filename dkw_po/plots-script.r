@@ -1,4 +1,5 @@
 #plots quad box
+set.seed(123)
 setwd("~/Research/dkw/dkw_po")
 source("generate.R")
 source("bounds.R")
@@ -128,4 +129,5 @@ for(size in m){
   plot_all(params)
   
 }
+
 
