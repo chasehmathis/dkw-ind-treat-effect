@@ -19,7 +19,7 @@ compare_makarov_quantile <- function(params) {
   quant_true <- quantile(data$tau, 0.5)
   conf_int_idx <- which(diff_bounds[,1] < 0.5 & diff_bounds[,2] > 0.5)
   conf_int_us <- list(lower = min(diff_bounds[conf_int_idx, 3]), upper = max(diff_bounds[conf_int_idx, 3]))
-  conf_riqite <- ci_quantile(data$Z, data$Y, 0.5, nperm = 1e4, alpha = 0.2)
+  conf_riqite <- ci_quantile(data$Z, data$Y, 0.5, nperm = 1e4, alpha = params$alpha)
   if(abs(conf_int_us$lower - naive_l) < 0.25) {
     conf_int_us$lower <- -Inf
   }
@@ -75,11 +75,11 @@ for(tight_bounds in c(FALSE, TRUE)){
 
 
 sim_results |> 
-  dplyr::group_by(m,alpha,tight_bounds) |> 
+  dplyr::group_by(tight_bounds,m,alpha) |> 
   dplyr::summarise(
     width_us = mean(width),
     width_riqite = mean(width_riqite == Inf)
-  )
+  ) |> print(n =200)
 # Optionally, save results to a file
 write.csv(sim_results, file = "makarov_quantile_sim_results.csv", row.names = FALSE)
 
