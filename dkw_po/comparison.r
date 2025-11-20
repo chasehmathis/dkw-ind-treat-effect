@@ -9,22 +9,25 @@ compare_makarov_quantile <- function(params) {
   data <- result$data
   obs_Y1 <- sort(result$obs_Y1)
   obs_Y0 <- sort(result$obs_Y0)
-
+  # naive bounds
+  naive_u <- max(obs_Y1) - min(obs_Y0)
+  naive_l <- min(obs_Y1) - max(obs_Y0)
   # Compute Makarov bounds for all t values
   diff_bounds <- get_marakov_bounds_all_t(bounds, obs_Y1, obs_Y0, data)
 
   quant_true <- quantile(data$tau, 0.5)
   conf_int_idx <- which(diff_bounds[,1] < 0.5 & diff_bounds[,2] > 0.5)
-  if (length(conf_int_idx) == 0) {
-    # If interval not found, set as NA
-    conf_int_us <- list(lower = NA, upper = NA)
-    width_us <- NA
-    cover_us <- NA
-  } else {
-    conf_int_us <- list(lower = min(diff_bounds[conf_int_idx, 3]), upper = max(diff_bounds[conf_int_idx, 3]))
-    width_us <- conf_int_us$upper - conf_int_us$lower
-    cover_us <- quant_true > conf_int_us$lower & quant_true < conf_int_us$upper
+  conf_int_us <- list(lower = min(diff_bounds[conf_int_idx, 3]), upper = max(diff_bounds[conf_int_idx, 3]))
+  browser()
+  if(abs(conf_int_us$lower - naive_l) < 0.25) {
+    conf_int_us$lower <- -Inf
   }
+  if(abs(conf_int_us$upper - naive_u) < 0.25){
+  conf_int_us$upper <- Inf
+  }
+  width_us <- conf_int_us$upper - conf_int_us$lower
+  cover_us <- quant_true > conf_int_us$lower & quant_true < conf_int_us$upper
+
   return(
     data.frame(
       m = params$m,
@@ -43,7 +46,7 @@ compare_makarov_quantile <- function(params) {
 
 set.seed(123) # for reproducibility
 NSIM <- 200 # or set to desired number of simulations
-m_values <- c(1e2, 5e2, 1e3)
+m_values <- c(5e3, 1e4, 1e5)
 sim_results <- data.frame()
 
 for (size in m_values) {
@@ -53,7 +56,7 @@ for (size in m_values) {
     alpha = 0.1,
     heterogeneity = 3,
     outcome_model = rlnorm,
-    tight_bounds = FALSE
+    tight_bounds = TRUE
   )
   for (sim in 1:NSIM) {
     print(sim)
