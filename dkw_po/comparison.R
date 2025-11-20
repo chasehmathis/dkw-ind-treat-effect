@@ -62,7 +62,7 @@ for(tight_bounds in c(FALSE, TRUE)){
         alpha = alpha,
         heterogeneity = 3,
         outcome_model = rlnorm,
-        tight_bounds = FALSE
+        tight_bounds = tight_bounds
       )
       
       for (sim in 1:NSIM) {
@@ -75,7 +75,7 @@ for(tight_bounds in c(FALSE, TRUE)){
 
 
 sim_results |> 
-  dplyr::group_by(m,alpha) |> 
+  dplyr::group_by(m,alpha,tight_bounds) |> 
   dplyr::summarise(
     width_us = mean(width),
     width_riqite = mean(width_riqite == Inf)
