@@ -1,12 +1,22 @@
 # Main Execution Script
 # This script orchestrates the DKW bound computation and comparison with RIQITE
-
+setwd("~/Research/dkw/dkw_po")
 source("generate.R")
 source("bounds.R")
 
 # Generate data and compute initial bounds
 cat("Generating data and computing initial bounds...\n")
-result <- get_bounds()
+# high level params for stratifying results
+# Define parameters as a list in R
+params <- list(
+  m = 500,     # Sample size
+  p = 0.6,      # Probability parameter
+  alpha = 0.1,   # Significance level
+  heterogeneity = 1,
+  outcome_model <- rlnorm
+  
+)
+result <- do.call(get_bounds, params)
 
 # Extract results
 bounds <- result$bounds
@@ -31,35 +41,56 @@ ci6 <- ci_quantile(Z = data$Z,
                    alpha = 0.1)
 
 # Prepare plotting
-sorted_percentiles <- c(1, sort(unique(diff_bounds[,1]), decreasing = TRUE))
+sorted_percentiles_lower <- c( sort(unique(diff_bounds[,1]), decreasing = TRUE))
+sorted_percentiles_upper <- c(sort(unique(diff_bounds[,2]), decreasing = TRUE))
 
-taus <- sapply(sorted_percentiles[-1], function(perc) {
-  min(diff_bounds[diff_bounds[,1] == perc, 3, drop = FALSE])
-})
+grid <- expand.grid(sorted_percentiles_lower, sorted_percentiles_upper)
+X <- apply(grid, 1, \(x) which(x[1] == diff_bounds[,1] & x[2] == diff_bounds[,2]))
+# get min and max
+min_max <- function(data){
+  if(nrow(data) == 0){return(NA)}
+  min <- apply(data, 2, min)[3]
+  max <- apply(data, 2, max)[3]
+  c(data[1,1:2], min,max)
+}
 
-xmax <- max(taus) + 10
+# prepare for ranks 
+diff_bounds[,1:2] <- params$m*diff_bounds[,1:2]
+plot_bounds <- sapply(X, \(z) min_max(diff_bounds[z, , drop = F]))
+plot_bounds <-plot_bounds[!is.na(plot_bounds)]
+mintaus <- min(diff_bounds[,3]);
+maxtaus <- max(diff_bounds[,3])
 
 # Create comparison plot
 par(mfrow = c(1, 2))
 plot_quantile_CIs(ci6, 
-                  main = "Xinran Method: Stephenson Rank=10",
+                  main = "Recent Method (Caughey et al.)",
                   k_start = 0)
 
 plot(NA, 
-     ylab = "k", 
-     xlab = expression("lower" ~ "confidence" ~ "limit" ~ "for" ~ tau[(k)]),
-     ylim = c(0, nrow(data)), 
-     xlim = c(-20, xmax))
+     xlab = "k", 
+     ylab = expression("confidence"~"limit"~"for" ~ tau[(k)]),
+     xlim = c(0, nrow(data)), 
+     ylim = c(mintaus, maxtaus),
+     main = "Our Closed Form Method")
 
-for (idx in seq_along(sorted_percentiles[-1])) {
-  this_percentile <- sorted_percentiles[idx]
-  next_percentile <- sorted_percentiles[idx+1]
-  go_through <- unique(round(seq(next_percentile, this_percentile, 
-                                   length.out = 100)*nrow(data)))
+for (idx in seq_along(plot_bounds)) {
+
+  this_bound <- plot_bounds[[idx]]
+  go_through <- seq(this_bound[3], this_bound[4], length.out = 1e2)
   
-  tau_i <- taus[idx]
   for (k in go_through) {
-    lines(c(tau_i, xmax + 1), c(k, k), col = "grey")
+    if(idx != length(plot_bounds)){
+      points(this_bound[1], k, pch = 16, col = "black", cex = 0.6)
+    }
+    if(idx != 1){
+      points(this_bound[2], k, pch = 16, col = "black", cex = 0.6)
+    }
+    lines(c(this_bound[1], this_bound[2] + 1), c(k, k), col = "grey")
+
+
   }
 }
+
+
 

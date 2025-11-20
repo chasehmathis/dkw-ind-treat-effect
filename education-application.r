@@ -1,0 +1,57 @@
+# education achievement
+selected_s = 6
+nperm = 10^5
+n_units = nrow( electric_teachers )
+pval.steph <- pval_quantile(Z=electric_teachers$TxAny, Y=electric_teachers$gain,
+                            k=n_units, c=0, alternative = "greater",
+                            method.list=list(name="Stephenson", s=selected_s), nperm=nperm )
+                            
+ci6 = ci_quantile(Z=electric_teachers$TxAny, Y=electric_teachers$gain, 
+                  alternative="greater",
+                  method.list = list(name="Stephenson", s=selected_s), 
+                  nperm=nperm, alpha=0.10)
+plot_quantile_CIs(ci6, k_start = 102, main = "Xinran Method" )
+
+Z <- electric_teachers$TxAny
+Y <- electric_teachers$gain
+obs_Y1 <- sort(Y[Z == 1])
+obs_Y0 <- sort(Y[Z == 0])
+
+diff_bounds <- get_marakov_bounds_all_t(bounds, obs_Y1, obs_Y0, data)
+
+
+# Prepare plotting
+sorted_percentiles <- c(1, sort(unique(diff_bounds[,1]), decreasing = TRUE))
+
+taus <- sapply(sorted_percentiles[-1], function(perc) {
+  min(diff_bounds[diff_bounds[,1] == perc, 3, drop = FALSE])
+})
+
+xmax <- max(taus) + 10
+
+# Create comparison plot
+par(mfrow = c(1, 2))
+plot_quantile_CIs(ci6, 
+                  main = "Recent Method (Caughey et al.)",
+                  k_start = 0)
+
+plot(NA, 
+     ylab = "k", 
+     xlab = expression("lower" ~ "confidence" ~ "limit" ~ "for" ~ tau[(k)]),
+     ylim = c(0, nrow(data)), 
+     xlim = c(-20, xmax),
+     main = "Our Closed Form Method")
+
+for (idx in seq_along(sorted_percentiles[-1])) {
+  this_percentile <- sorted_percentiles[idx]
+  next_percentile <- sorted_percentiles[idx+1]
+  go_through <- unique(round(seq(next_percentile, this_percentile, 
+                                 length.out = 100)*nrow(data)))
+  
+  tau_i <- taus[idx]
+  for (k in go_through) {
+    lines(c(tau_i, xmax + 1), c(k, k), col = "grey")
+    points(tau_i, k, pch = 16, col = "black", cex = 0.6)
+  }
+}
+

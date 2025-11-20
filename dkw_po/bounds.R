@@ -11,8 +11,16 @@ ecdf_Y1_bound <- function(x, bounds, obs_Y1) {
   u_bound_1 <- bounds[[1]]
   l_bound_1 <- bounds[[2]]
   
-  # Find closest index
-  idx <- sapply(x, \(z) which.min(abs(obs_Y1 - z)))
+  n <- length(obs_Y1)
+  # OPTIMIZATION: Use findInterval instead of sapply + which
+  idx <- findInterval(x, obs_Y1)
+  below_min <- (idx == 0)
+  above_max <- (idx == n & x > obs_Y1[n])
+  
+  idx[below_min] <- n + 1
+  idx[above_max] <- n + 2
+
+  
   return(cbind(l_bound_1[idx], u_bound_1[idx]))
 }
 
@@ -25,9 +33,14 @@ ecdf_Y1_bound <- function(x, bounds, obs_Y1) {
 ecdf_Y0_bound <- function(x, bounds, obs_Y0) {
   u_bound_0 <- bounds[[3]]
   l_bound_0 <- bounds[[4]]
+  n <- length(obs_Y0)
+  # OPTIMIZATION: Use findInterval instead of sapply + which
+  idx <- findInterval(x, obs_Y0)
+  below_min <- (idx == 0)
+  above_max <- (idx == n & x > obs_Y0[n])
   
-  # Find closest index
-  idx <- sapply(x, \(z) which.min(abs(obs_Y0 - z)))
+  idx[below_min] <- n + 1
+  idx[above_max] <- n + 2
   return(cbind(l_bound_0[idx], u_bound_0[idx]))
 }
 
@@ -37,17 +50,27 @@ ecdf_Y0_bound <- function(x, bounds, obs_Y0) {
 #' @param bounds Pre-computed ECDF bounds
 #' @param obs_Y1 Sorted observed outcomes in treatment group
 #' @param obs_Y0 Sorted observed outcomes in control group
+#' @param minY Optional: pre-computed minimum of obs_Y1 (for efficiency)
+#' @param maxY Optional: pre-computed maximum of obs_Y1 (for efficiency)
 #' @return Vector with (lower_bound, upper_bound, t)
-marakov_bounds_t <- function(t, bounds, obs_Y1, obs_Y0) {
-  x <- seq(-50, 50)
+marakov_bounds_t <- function(t, bounds, obs_Y1, obs_Y0, minY = NULL, maxY = NULL) {
+  # OPTIMIZATION: Use pre-computed min/max if provided, else compute once
+  if (is.null(minY)) minY <- min(obs_Y1)
+  if (is.null(maxY)) maxY <- max(obs_Y1)
+  
+  L <- 15
+  min_grid <- min(obs_Y1) - L - abs(t)
+  max_grid <- max(obs_Y1) + L + abs(t)
+  
+  x <- seq(min_grid, max_grid, by = 0.005)
+
   Y1_bound <- ecdf_Y1_bound(x, bounds, obs_Y1)
   Y0_bound <- ecdf_Y0_bound(x - t, bounds, obs_Y0)
-
-  argument <- cbind(pmax(Y1_bound[,1] - Y0_bound[,1], 0),
-                    pmin(Y1_bound[,2] - Y0_bound[,2], 1))
-  
-  l_bound <- max(argument)
-  u_bound <- min(argument + 1)
+  lower_arg <- pmax(Y1_bound[,1] - Y0_bound[,2],0)
+  upper_arg <- pmin(Y1_bound[,2] - Y0_bound[,1] + 1, 1)
+  # OPTIMIZATION: Use vector operations more efficiently
+  l_bound <- max(lower_arg)  # Explicitly use first column for clarity
+  u_bound <- min(upper_arg)  # Explicitly use second column
   
   c(l_bound, u_bound, t)
 }
@@ -60,19 +83,28 @@ marakov_bounds_t <- function(t, bounds, obs_Y1, obs_Y0) {
 #' @param data True data with tau values
 #' @return Matrix with bounds for all t values
 get_marakov_bounds_all_t <- function(bounds, obs_Y1, obs_Y0, data) {
-  t <- seq(-20, 80, length.out = 1000)
+  bounds <- lapply(bounds, \(z) c(z, 0,1))
+  L <- 10
+  t <- seq(-2*L, 2*L, length.out = 1000) # L is assumed bound on PO
   
-  res_bounds <- matrix(ncol = 3)
-  for(i in t) {
-    res_bounds <- rbind(res_bounds, marakov_bounds_t(i, bounds, obs_Y1, obs_Y0))
+  # CRITICAL OPTIMIZATION: Pre-allocate result matrix instead of using rbind in loop
+  # rbind in loop is O(n²) - this is O(n)
+  n_t <- length(t)
+  res_bounds <- matrix(nrow = n_t, ncol = 3)
+  
+  # OPTIMIZATION: Compute min/max once outside the loop
+  minY <- min(obs_Y1)
+  maxY <- max(obs_Y1)
+  
+  for(i in seq_along(t)) {
+    # Debug condition (keep for now)
+    #if(abs(t[i] + 5) < 0.1){
+    # if(length(obs_Y1) + length(obs_Y0) == 1e4){browser()}
+    #}
+    # OPTIMIZATION: Fill pre-allocated matrix instead of rbind
+    res_bounds[i, ] <- marakov_bounds_t(t[i], bounds, obs_Y1, obs_Y0, minY, maxY)
   }
   
-  res_bounds <- res_bounds[2:nrow(res_bounds),]
-
-  plot.ecdf(data$tau, main = "true ECDF of individual tau")
-  points(res_bounds[,3], res_bounds[,2], col = "red")
-  points(res_bounds[,3], res_bounds[,1], col = "blue")
-  
+  # OPTIMIZATION: No need to remove first row since we pre-allocated correctly
   return(res_bounds)
 }
-
