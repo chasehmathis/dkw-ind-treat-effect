@@ -59,7 +59,7 @@ for(alpha in c(0.2, 0.3, 0.4)){
     params <- list(
       m = size,
       p = 0.5,
-      alpha = 0.2,
+      alpha = alpha,
       heterogeneity = 3,
       outcome_model = rlnorm,
       tight_bounds = FALSE
@@ -73,7 +73,7 @@ for(alpha in c(0.2, 0.3, 0.4)){
 }
 
 sim_results |> 
-  dplyr::group_by(m) |> 
+  dplyr::group_by(m,alpha) |> 
   dplyr::summarise(
     width_us = mean(width),
     width_riqite = mean(width_riqite == Inf)
