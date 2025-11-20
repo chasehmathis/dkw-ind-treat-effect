@@ -1,6 +1,8 @@
 
 # Compare our Makarov quantile method and save simulation results
-
+set.seed(123)
+source("generate.R")
+source("bounds.R")
 compare_makarov_quantile <- function(params) {
   result <- do.call(get_bounds, params)
   bounds <- result$bounds
