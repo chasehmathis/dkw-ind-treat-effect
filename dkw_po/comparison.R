@@ -45,7 +45,7 @@ compare_makarov_quantile <- function(params) {
 }
 
 set.seed(123) # for reproducibility
-NSIM <- 200 # or set to desired number of simulations
+NSIM <- 100 # or set to desired number of simulations
 m_values <- c(5e3, 1e4, 1e5)
 sim_results <- data.frame()
 
