@@ -50,7 +50,7 @@ compare_makarov_quantile <- function(params) {
 }
 
 set.seed(123) # for reproducibility
-NSIM <- 100 # or set to desired number of simulations
+NSIM <- 20 # or set to desired number of simulations
 m_values <- c(1e3,2e3)
 sim_results <- data.frame()
 
@@ -74,7 +74,7 @@ for(alpha in c(0.2, 0.3, 0.4)){
 
 sim_results |> 
   dplyr::group_by(m) |> 
-  summarise(
+  dplyr::summarise(
     width_us = mean(width),
     width_riqite = mean(width_riqite == Inf)
   )
