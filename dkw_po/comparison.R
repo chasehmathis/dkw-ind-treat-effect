@@ -29,7 +29,7 @@ compare_makarov_quantile <- function(params) {
   width_us <- conf_int_us$upper - conf_int_us$lower
   cover_us <- quant_true > conf_int_us$lower & quant_true < conf_int_us$upper
   width_riqite <- conf_riqite$upper - conf_riqite$lower
-  cover_us <- quant_true > conf_riqite$lower & quant_true < conf_riqite$upper
+  cover_riqite <- quant_true > conf_riqite$lower & quant_true < conf_riqite$upper
 
   return(
     data.frame(
@@ -42,7 +42,9 @@ compare_makarov_quantile <- function(params) {
       ci_lower = conf_int_us$lower,
       ci_upper = conf_int_us$upper,
       width = width_us,
-      cover = cover_us
+      cover = cover_us,
+      width_riqite = width_riqite,
+      cover_riqite = cover_riqite
     )
   )
 }
@@ -52,22 +54,30 @@ NSIM <- 100 # or set to desired number of simulations
 m_values <- c(1e3,2e3)
 sim_results <- data.frame()
 
-for (size in m_values) {
-  params <- list(
-    m = size,
-    p = 0.5,
-    alpha = 0.2,
-    heterogeneity = 3,
-    outcome_model = rlnorm,
-    tight_bounds = FALSE
-  )
-  
-  for (sim in 1:NSIM) {
-    print(sim)
-    sim_results <- rbind(sim_results, compare_makarov_quantile(params))
+for(alpha in c(0.2, 0.3, 0.4)){
+  for (size in m_values) {
+    params <- list(
+      m = size,
+      p = 0.5,
+      alpha = 0.2,
+      heterogeneity = 3,
+      outcome_model = rlnorm,
+      tight_bounds = FALSE
+    )
+    
+    for (sim in 1:NSIM) {
+      print(sim)
+      sim_results <- rbind(sim_results, compare_makarov_quantile(params))
+    }
   }
 }
 
+sim_results |> 
+  dplyr::group_by(m) |> 
+  summarise(
+    width_us = mean(width),
+    width_riqite = mean(width_riqite == Inf)
+  )
 # Optionally, save results to a file
 write.csv(sim_results, file = "makarov_quantile_sim_results.csv", row.names = FALSE)
 
