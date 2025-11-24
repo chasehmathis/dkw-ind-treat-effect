@@ -1,10 +1,12 @@
 
 # Compare our Makarov quantile method and save simulation results
 set.seed(123)
+
 source("generate.R")
 source("bounds.R")
 library(RIQITE)
 compare_makarov_quantile <- function(params) {
+
   result <- do.call(get_bounds, params)
   bounds <- result$bounds
   data <- result$data
@@ -16,70 +18,103 @@ compare_makarov_quantile <- function(params) {
   # Compute Makarov bounds for all t values
   diff_bounds <- get_marakov_bounds_all_t(bounds, obs_Y1, obs_Y0, data)
 
-  quant_true <- quantile(data$tau, 0.5)
-  conf_int_idx <- which(diff_bounds[,1] < 0.5 & diff_bounds[,2] > 0.5)
-  conf_int_us <- list(lower = min(diff_bounds[conf_int_idx, 3]), upper = max(diff_bounds[conf_int_idx, 3]))
-  conf_riqite <- ci_quantile(data$Z, data$Y, 0.5, nperm = 1e4, alpha = params$alpha)
-  if(abs(conf_int_us$lower - naive_l) < 0.25) {
-    conf_int_us$lower <- -Inf
+  quants_check <- seq(0,1,by = 0.25)
+  quants_true <- quantile(data$tau, quants_check)
+  conf_int_idx <- lapply(quants_check, \(z) which(diff_bounds[,2] >= z))
+  # just do lower bound since that is what riqite does well in 
+  conf_int_us <- lapply(conf_int_idx, \(z)  min(diff_bounds[z, 3]))
+  conf_riqite <- ci_quantile(data$Z, data$Y, quants_check*nrow(data), 
+                             nperm = 1e4, alpha = params$alpha) # because two sided
+  for(i in length(conf_int_us)){
+    if(abs(conf_int_us[[i]] - naive_l) < 0.25) {
+      conf_int_us[[i]] <- -Inf
+    }
   }
-  if(abs(conf_int_us$upper - naive_u) < 0.25){
-  conf_int_us$upper <- Inf
-  }
-  width_us <- conf_int_us$upper - conf_int_us$lower
-  cover_us <- quant_true > conf_int_us$lower & quant_true < conf_int_us$upper
-  width_riqite <- conf_riqite$upper - conf_riqite$lower
-  cover_riqite <- quant_true > conf_riqite$lower & quant_true < conf_riqite$upper
+
+  cover_us <- quants_true > conf_int_us
+  cover_riqite <- quants_true > conf_riqite$lower
+  width_diff <- unlist(conf_int_us) - conf_riqite$lower
 
   return(
     data.frame(
       m = params$m,
       p = params$p,
-      alpha = params$alpha,
-      heterogeneity = params$heterogeneity,
+      tau = params$tau,
+      rho = params$rho,
+      tau = params$tau,
       tight_bounds = params$tight_bounds,
-      quant_true = quant_true,
-      ci_lower = conf_int_us$lower,
-      ci_upper = conf_int_us$upper,
-      width = width_us,
-      cover = cover_us,
-      width_riqite = width_riqite,
-      cover_riqite = cover_riqite
+      width = width_diff,
+      cover_us = cover_us,
+      cover_riqite = cover_riqite,
+      quants_check = quants_check
     )
   )
 }
 
 set.seed(123) # for reproducibility
 NSIM <- 20 # or set to desired number of simulations
-m_values <- c(100,500,1e3,2e3)
+m_values <- c(100, 500,1e3,2e3, 1e4)
 sim_results <- data.frame()
-for(tight_bounds in c(FALSE, TRUE)){
-  for(alpha in c(0.2, 0.3, 0.4)){
-    for (size in m_values) {
-      params <- list(
-        m = size,
-        p = 0.5,
-        alpha = alpha,
-        heterogeneity = 3,
-        outcome_model = rlnorm,
-        tight_bounds = tight_bounds
-      )
-      
-      for (sim in 1:NSIM) {
-        print(sim)
-        sim_results <- rbind(sim_results, compare_makarov_quantile(params))
+for(rho in seq(0,1, length = 4)){
+  for(tight_bounds in c(FALSE, TRUE)){
+    for(tau in c(1, 2, 3)){
+      for (size in m_values) {
+        params <- list(
+          m = size,
+          p = 0.5,
+          alpha = 0.1,
+          tau = tau,
+          rho = rho,
+          tight_bounds = tight_bounds
+        )
+        
+        for (sim in 1:NSIM) {
+          print(sim)
+          sim_results <- rbind(sim_results, compare_makarov_quantile(params))
+        }
       }
     }
   }
+  
 }
 
 
-sim_results |> 
-  dplyr::group_by(tight_bounds,m,alpha) |> 
-  dplyr::summarise(
-    width_us = mean(width),
-    width_riqite = mean(width_riqite == Inf)
-  ) |> print(n =200)
+library(ggplot2)
+
+# Normalize vector x to [-1, 1]
+normalize <- function(x) {
+  rng <- range(x, na.rm = TRUE, finite = TRUE)
+  if (diff(rng) == 0) return(rep(0, length(x)))
+  2 * ((x - rng[1]) / diff(rng)) - 1
+}
+
+plot_quantile_width <- function(df, 
+                               xvar = c("rho", "tau", "m"), 
+                               tight_bounds = FALSE) {
+  xvar <- match.arg(xvar)
+  df <- subset(df, tight_bounds == tight_bounds)
+  df$width[is.infinite(df$width)] <- 1
+  df$width_norm <- normalize(df$width)
+  # Ensure categorical if not numeric
+  if (xvar %in% c("rho", "tau")) df[[xvar]] <- as.factor(df[[xvar]])
+  agg <- aggregate(width_norm ~ quants_check + get(xvar), df, mean, na.rm = TRUE)
+  xcol <- names(agg)[2]
+  names(agg)[2] <- "xval"
+  ggplot(agg, aes(x = xval, y = width_norm, color = factor(quants_check), group = quants_check)) +
+    geom_line(aes(linetype = factor(quants_check)), size = 1) +
+    geom_point() +
+    labs(x = xvar, 
+         y = "Mean normalized width ([-1,1])", 
+         color = "quantile check", 
+         linetype = "quantile check",
+         title = sprintf("Normalized width by %s (tight_bounds=%s)", xvar, tight_bounds)) +
+    theme_minimal()
+}
+
+# Usage examples:
+plot_quantile_width(sim_results, xvar = "rho")
+plot_quantile_width(sim_results, xvar = "tau", tight_bounds = TRUE)
+plot_quantile_width(sim_results, xvar = "m")
 # Optionally, save results to a file
 write.csv(sim_results, file = "makarov_quantile_sim_results.csv", row.names = FALSE)
 

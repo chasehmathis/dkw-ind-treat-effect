@@ -86,7 +86,7 @@ get_marakov_bounds_all_t <- function(bounds, obs_Y1, obs_Y0, data) {
   bounds <- lapply(bounds, \(z) c(z, 0,1))
   L <- 10
   t <- seq(-2*L, 2*L, length.out = 1000) # L is assumed bound on PO
-  
+
   # CRITICAL OPTIMIZATION: Pre-allocate result matrix instead of using rbind in loop
   # rbind in loop is O(n²) - this is O(n)
   n_t <- length(t)

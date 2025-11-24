@@ -26,26 +26,17 @@ ecdf_deterministic <- function(data, n, p = 0.5) {
 #'
 #' @param m Sample size
 #' @return Data frame with potential outcomes
-generate_true_sample <- function(m, heterogeneity, outcome_model, p) {
+generate_true_sample <- function(m, p, tau, rho) {
 
   design <-
     declare_model(
       N = m,
-      # baseline covariates
-      X1 = rnorm(N, 0, 1),
-      X2 = sample(letters[1:3], N, replace = TRUE),
       Z = rbinom(n = N, size = 1, prob = p),
-      # potential outcomes depending on covariates + treatment
-      # potential_outcomes(
-      #   Y ~ outcome_model(N, meanlog = MEANLOG,
-      #              sdlog = 0.5) - 1000
-      # )
-      potential_outcomes(
-        Y ~ 3 * Z + rnorm(N, sd = sqrt(heterogeneity))
+      draw_multivariate(
+        c(Y_Z_0, Y_Z_1) ~ mvrnorm(n = m, mu = c(0,tau), Sigma = matrix(c(1,rho,rho,1),2))
       )
     ) +
     declare_measurement(Y = reveal_outcomes(Y ~ Z))
-  
   data_true <- draw_data(design)
   data_true[["tau"]] <- data_true$Y_Z_1 - data_true$Y_Z_0
   return(data_true)
@@ -58,12 +49,11 @@ generate_true_sample <- function(m, heterogeneity, outcome_model, p) {
 #' @param alpha Significance level
 #' @return List containing bounds, data, and observed outcomes
 get_bounds <- function(m = 3000, p = 0.6, alpha = 0.1, 
-                       heterogeneity = 1, outcome_model = rlnorm, 
+                       rho = 0.4,tau = 1,
                        tight_bounds = FALSE) {
   
   # Generate true sample data
-  data_truth <- generate_true_sample(m, p = p, heterogeneity = heterogeneity, 
-                                     outcome_model = outcome_model)
+  data_truth <- generate_true_sample(m, p = p, tau = tau, rho = rho)
 
   
   # Observed sample
