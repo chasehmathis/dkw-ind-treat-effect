@@ -2,7 +2,7 @@
 # This module handles data generation and initial bound computation
 # install.packages("DeclareDesign) good for potential outcome simualtion
 library(DeclareDesign)
-
+library(MASS)
 #' Special ECDF function for 1/(pn). Returns a modified ecdf
 #' 
 #' @parm data vector

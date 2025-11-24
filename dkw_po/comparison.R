@@ -5,6 +5,7 @@ set.seed(123)
 source("generate.R")
 source("bounds.R")
 library(RIQITE)
+library(MASS)
 compare_makarov_quantile <- function(params) {
 
   result <- do.call(get_bounds, params)
