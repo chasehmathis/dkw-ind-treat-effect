@@ -87,7 +87,8 @@ for(rho in seq(0,1, length = 4)){
 # Optionally, save results to a file
 write.csv(sim_results, file = "makarov_quantile_sim_results.csv", row.names = FALSE)
 
-
+sim_results <- sim_results |> 
+  dplyr::mutate(width = width_us - width_riqite)
 
 plot_quantile_width <- function(df, 
                                xvar = c("rho", "tau", "m"), 
