@@ -132,7 +132,7 @@ for(size in m){
   
 }
 
-# FIGURE 3
+# FIGURE 2
 m <- c(1e2, 5e2, 1e3)
 for(size in m){
   

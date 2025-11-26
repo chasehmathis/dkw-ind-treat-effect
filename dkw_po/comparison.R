@@ -6,6 +6,8 @@ source("generate.R")
 source("bounds.R")
 library(RIQITE)
 library(MASS)
+library(ggplot2)
+plot.dir <- "../fig/"
 compare_makarov_quantile <- function(params) {
 
   result <- do.call(get_bounds, params)
@@ -44,7 +46,8 @@ compare_makarov_quantile <- function(params) {
       rho = params$rho,
       tau = params$tau,
       tight_bounds = params$tight_bounds,
-      width = width_diff,
+      width_us = unlist(conf_int_us),
+      width_riqite = conf_riqite$lower,
       cover_us = cover_us,
       cover_riqite = cover_riqite,
       quants_check = quants_check
@@ -80,42 +83,65 @@ for(rho in seq(0,1, length = 4)){
 }
 
 
-library(ggplot2)
 
-# Normalize vector x to [-1, 1]
-normalize <- function(x) {
-  rng <- range(x, na.rm = TRUE, finite = TRUE)
-  if (diff(rng) == 0) return(rep(0, length(x)))
-  2 * ((x - rng[1]) / diff(rng)) - 1
-}
+# Optionally, save results to a file
+write.csv(sim_results, file = "makarov_quantile_sim_results.csv", row.names = FALSE)
+
+
 
 plot_quantile_width <- function(df, 
                                xvar = c("rho", "tau", "m"), 
-                               tight_bounds = FALSE) {
+                               tight_bounds_bool = FALSE) {
   xvar <- match.arg(xvar)
-  df <- subset(df, tight_bounds == tight_bounds)
-  df$width[is.infinite(df$width)] <- 1
-  df$width_norm <- normalize(df$width)
+  if(!tight_bounds_bool){
+    df <- df |> 
+      dplyr::filter(tight_bounds == tight_bounds_bool,
+                    m >= 1000)
+    
+  }else{
+    df <- df |> dplyr::filter(tight_bounds == tight_bounds_bool)
+  }
+  df$width[is.infinite(df$width)] <- max(subset(sim_results, 
+                                                !is.infinite(width))$width)
+  
   # Ensure categorical if not numeric
-  if (xvar %in% c("rho", "tau")) df[[xvar]] <- as.factor(df[[xvar]])
-  agg <- aggregate(width_norm ~ quants_check + get(xvar), df, mean, na.rm = TRUE)
+  if (xvar %in% c("rho", "tau")) df[[xvar]] <- as.factor(round(df[[xvar]], 3))
+  agg <- aggregate(width ~ quants_check + get(xvar), df, mean, na.rm = TRUE)
   xcol <- names(agg)[2]
   names(agg)[2] <- "xval"
-  ggplot(agg, aes(x = xval, y = width_norm, color = factor(quants_check), group = quants_check)) +
-    geom_line(aes(linetype = factor(quants_check)), size = 1) +
+  ggplot(agg, aes(x = xval, y = width, color = factor(quants_check), group = quants_check)) +
+    geom_line(aes(linetype = factor(quants_check)), size = 1, alpha = 0.7) +
     geom_point() +
     labs(x = xvar, 
-         y = "Mean normalized width ([-1,1])", 
-         color = "quantile check", 
-         linetype = "quantile check",
-         title = sprintf("Normalized width by %s (tight_bounds=%s)", xvar, tight_bounds)) +
+         y = "Magnitude Better Lower Bound", 
+         color = "For Quantile", 
+         linetype = NULL,
+         title = sprintf("Comparing Better Lower Bound by %s", xvar)) +
     theme_minimal()
 }
 
-# Usage examples:
-plot_quantile_width(sim_results, xvar = "rho")
+# figure 2
+png(paste0(plot.dir, "comparison-by-size-study.png"))
+plot_quantile_width(sim_results, xvar = "m", tight_bounds = FALSE)
+dev.off()
+png(paste0(plot.dir, "comparison-by-rho-study.png"))
+plot_quantile_width(sim_results, xvar = "rho", tight_bounds = FALSE)
+dev.off()
+png(paste0(plot.dir, "comparison-by-tau-study.png"))
+plot_quantile_width(sim_results, xvar = "tau", tight_bounds = FALSE)
+dev.off()
+
+
+# figure 4
+
+png(paste0(plot.dir, "comparison-by-size-study-tight.png"))
+plot_quantile_width(sim_results, xvar = "m", tight_bounds = TRUE)
+dev.off()
+png(paste0(plot.dir, "comparison-by-rho-study-tight.png"))
+plot_quantile_width(sim_results, xvar = "rho", tight_bounds = TRUE)
+dev.off()
+png(paste0(plot.dir, "comparison-by-tau-study-tight.png"))
 plot_quantile_width(sim_results, xvar = "tau", tight_bounds = TRUE)
-plot_quantile_width(sim_results, xvar = "m")
-# Optionally, save results to a file
-write.csv(sim_results, file = "makarov_quantile_sim_results.csv", row.names = FALSE)
+dev.off()
+
 
