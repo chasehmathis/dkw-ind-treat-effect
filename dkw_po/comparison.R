@@ -62,7 +62,7 @@ for(rho in c(0.1, 0.3, 0.7)){
       for (size in m) {
         params <- list(
           m = size,
-          p = p,
+          p = 0.6,
           alpha = 0.1,
           tau = tau,
           rho = rho

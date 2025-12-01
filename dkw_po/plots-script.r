@@ -98,7 +98,7 @@ for(tau in seq(1,9, length = 3)){
         
         params <- list(
           m = size,
-          p = p,
+          p = 0.6,
           alpha = 0.1,
           tau =tau,
           rho = rho
