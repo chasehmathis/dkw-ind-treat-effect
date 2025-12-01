@@ -9,7 +9,6 @@ library(MASS)
 library(ggplot2)
 plot.dir <- "../fig/"
 compare_makarov_quantile <- function(params) {
-
   result <- do.call(get_bounds, params)
   bounds <- result$bounds
   data <- result$data
@@ -25,10 +24,11 @@ compare_makarov_quantile <- function(params) {
   quants_true <- quantile(data$tau, quants_check)
   conf_int_idx <- lapply(quants_check, \(z) which(diff_bounds[,2] >= z))
   # just do lower bound since that is what riqite does well in 
-  conf_int_us <- lapply(conf_int_idx, \(z)  min(diff_bounds[z, 3]))
+  conf_int_us <- lapply(conf_int_idx, \(z)  max( c(min(diff_bounds[z, 3])), naive_l))
   conf_riqite <- ci_quantile(data$Z, data$Y, quants_check*nrow(data), 
-                             nperm = 1e4, alpha = params$alpha) # because two sided
-  for(i in length(conf_int_us)){
+                             nperm = 1e3, alpha = params$alpha)
+
+  for(i in 1:length(conf_int_us)){
     if(abs(conf_int_us[[i]] - naive_l) < 0.25) {
       conf_int_us[[i]] <- -Inf
     }
@@ -44,8 +44,6 @@ compare_makarov_quantile <- function(params) {
       p = params$p,
       tau = params$tau,
       rho = params$rho,
-      tau = params$tau,
-      tight_bounds = params$tight_bounds,
       width_us = unlist(conf_int_us),
       width_riqite = conf_riqite$lower,
       cover_us = cover_us,
@@ -57,30 +55,29 @@ compare_makarov_quantile <- function(params) {
 
 set.seed(123) # for reproducibility
 NSIM <- 20 # or set to desired number of simulations
-m_values <- c(100, 500,1e3,2e3, 1e4)
+m <- c(1e2, 5e2, 1e3)
 sim_results <- data.frame()
-for(rho in seq(0,1, length = 4)){
-  for(tight_bounds in c(FALSE, TRUE)){
-    for(tau in c(1, 2, 3)){
-      for (size in m_values) {
+for(tau in seq(1,9, length = 3)){
+for(rho in c(0.1, 0.3, 0.7)){
+      for (size in m) {
         params <- list(
           m = size,
-          p = 0.5,
+          p = p,
           alpha = 0.1,
           tau = tau,
-          rho = rho,
-          tight_bounds = tight_bounds
+          rho = rho
         )
-        
+      
         for (sim in 1:NSIM) {
           print(sim)
           sim_results <- rbind(sim_results, compare_makarov_quantile(params))
         }
-      }
-    }
   }
-  
 }
+}
+
+
+
 
 
 
@@ -88,61 +85,118 @@ for(rho in seq(0,1, length = 4)){
 write.csv(sim_results, file = "makarov_quantile_sim_results.csv", row.names = FALSE)
 
 sim_results <- sim_results |> 
-  dplyr::mutate(width = width_us - width_riqite)
+  dplyr::mutate(
+    percent_improvement = ifelse(
+      is.infinite(width_riqite),
+      Inf,
+      100 * (width_us - width_riqite) / abs(width_riqite)
+    )
+  )
 
-plot_quantile_width <- function(df, 
-                               xvar = c("rho", "tau", "m"), 
-                               tight_bounds_bool = FALSE) {
-  xvar <- match.arg(xvar)
-  if(!tight_bounds_bool){
-    df <- df |> 
-      dplyr::filter(tight_bounds == tight_bounds_bool,
-                    m >= 1000)
-    
-  }else{
-    df <- df |> dplyr::filter(tight_bounds == tight_bounds_bool)
-  }
-  df$width[is.infinite(df$width)] <- max(subset(sim_results, 
-                                                !is.infinite(width))$width)
-  
-  # Ensure categorical if not numeric
-  if (xvar %in% c("rho", "tau")) df[[xvar]] <- as.factor(round(df[[xvar]], 3))
-  agg <- aggregate(width ~ quants_check + get(xvar), df, mean, na.rm = TRUE)
-  xcol <- names(agg)[2]
-  names(agg)[2] <- "xval"
-  ggplot(agg, aes(x = xval, y = width, color = factor(quants_check), group = quants_check)) +
-    geom_line(aes(linetype = factor(quants_check)), size = 1, alpha = 0.7) +
-    geom_point() +
-    labs(x = xvar, 
-         y = "Magnitude Better Lower Bound", 
-         color = "For Quantile", 
-         linetype = NULL,
-         title = sprintf("Comparing Better Lower Bound by %s", xvar)) +
-    theme_minimal()
+library(ggplot2)
+library(RColorBrewer)
+
+plot_quantile_lower_bounds <- function(df, 
+                                       facet_by = c("rho", "tau", "m", "p"), 
+                                       legend.position = "bottom") {
+  facet_by <- match.arg(facet_by)
+  # Make factor for faceting, and get display values for plot
+  if (facet_by %in% c("rho", "tau", "p")) {
+    df[[facet_by]] <- as.factor(round(df[[facet_by]], 3))
+  } 
+  # Prepare tidy long format for plotting lower bounds per quantile and method
+  plotdf <- data.frame(
+    quantile = rep(df$quants_check, 2),
+    lower_bound = c(df$width_us, df$width_riqite),
+    method = factor(rep(c("Makarov LB", "RIQITE LB"), each = nrow(df))),
+    facet = rep(df[[facet_by]], 2)
+  )
+  # infinite to NA for plot
+  plotdf$lower_bound[is.infinite(plotdf$lower_bound)] <- NA
+
+  # Fixes for color and shape. Ensure color and shape map to `method`
+  point_shapes <- c("Makarov LB" = 21, "RIQITE LB" = 19)
+  point_colors <- c("Makarov LB" = "#d95f02", "RIQITE LB" = "#1b9e77")
+
+  # Number line range heuristics: remove outliers, but allow -Inf, Inf
+  min_lb <- suppressWarnings(min(plotdf$lower_bound, na.rm = TRUE))
+  max_lb <- suppressWarnings(max(plotdf$lower_bound, na.rm = TRUE))
+  range_lb <- range(c(-1, 1, min_lb, max_lb), na.rm = TRUE)
+  # Pad plot axis if possible for floating -Inf, Inf
+  eps <- (diff(range_lb) + 1) * 0.2
+  axis_limits <- c(min_lb - eps, max_lb + eps)
+
+  gg <- ggplot(plotdf, aes(y = quantile, x = lower_bound, color = method, shape = method, fill = method)) +
+    # Draw thick number-line at each quantile across all methods
+    geom_segment(
+      data = unique(plotdf[,c("quantile","facet")]), 
+      aes(x = axis_limits[1], xend = axis_limits[2], y = quantile, yend = quantile),
+      inherit.aes = FALSE, linewidth = 1.05, color = "#d5d5d5"
+    ) +
+    geom_point(size = 3.2, stroke = 1.15, aes(fill = method)) +
+    scale_shape_manual(values = point_shapes, name = "Method") +
+    scale_color_manual(values = point_colors, name = "Method") +
+    scale_fill_manual(values = point_colors, name = "Method") +
+    scale_y_continuous(
+      breaks = unique(plotdf$quantile),
+      labels = function(x) formatC(x, digits = 2, format = "f"),
+      expand = expansion(mult = c(0.08, 0.12)),
+      name = "Quantile Level"
+    ) +
+    scale_x_continuous(
+      limits = axis_limits, name = "Lower Bound", oob = scales::oob_keep
+    ) +
+    labs(
+      title = "Quantile Lower Bounds by Method",
+      subtitle = "Each row: quantile, Points: method lower bounds",
+      x = "Lower Bound"
+    ) +
+    facet_wrap(vars(facet), ncol = 1, labeller = label_both) +
+    theme_minimal(base_family = "serif") +
+    theme(
+      plot.background = element_rect(fill = "#fcfcff", color = NA),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_line(color = "#ebebeb"),
+      panel.grid.major.y = element_line(color = "#e0e0ef"),
+      plot.title = element_text(size = 17, face = "bold"),
+      plot.subtitle = element_text(size = 12),
+      axis.title.x = element_text(size = 15),
+      axis.title.y = element_text(size = 15),
+      axis.text = element_text(size = 12),
+      legend.position = legend.position,
+      legend.title = element_text(size = 13),
+      legend.text = element_text(size = 11),
+      strip.text = element_text(size = 12, face = "bold")
+    )
+  return(gg)
 }
+# Save plots with ggsave, pretty themes
+width_px <- 7
+height_px <- 4.7
+dpi_px <- 320
 
-# figure 2
-png(paste0(plot.dir, "comparison-by-size-study.png"))
-plot_quantile_width(sim_results, xvar = "m", tight_bounds = FALSE)
-dev.off()
-png(paste0(plot.dir, "comparison-by-rho-study.png"))
-plot_quantile_width(sim_results, xvar = "rho", tight_bounds = FALSE)
-dev.off()
-png(paste0(plot.dir, "comparison-by-tau-study.png"))
-plot_quantile_width(sim_results, xvar = "tau", tight_bounds = FALSE)
-dev.off()
+# Figure 2
+ggsave(
+  filename = paste0(plot.dir, "comparison-by-size-study.png"),
+  plot = plot_quantile_lower_bounds(sim_results, facet_by = "m"),
+  width = width_px, height = height_px, dpi = dpi_px
+)
+ggsave(
+  filename = paste0(plot.dir, "comparison-by-rho-study.png"),
+  plot = plot_quantile_width(sim_results, facet_by = "rho"),
+  width = width_px, height = height_px, dpi = dpi_px
+)
+
+ggsave(
+  filename = paste0(plot.dir, "comparison-by-p-study.png"),
+  plot = plot_quantile_width(sim_results, facet_by = "tau"),
+  width = width_px, height = height_px, dpi = dpi_px
+)
 
 
-# figure 4
 
-png(paste0(plot.dir, "comparison-by-size-study-tight.png"))
-plot_quantile_width(sim_results, xvar = "m", tight_bounds = TRUE)
-dev.off()
-png(paste0(plot.dir, "comparison-by-rho-study-tight.png"))
-plot_quantile_width(sim_results, xvar = "rho", tight_bounds = TRUE)
-dev.off()
-png(paste0(plot.dir, "comparison-by-tau-study-tight.png"))
-plot_quantile_width(sim_results, xvar = "tau", tight_bounds = TRUE)
-dev.off()
+# figure k
+
+
 
 

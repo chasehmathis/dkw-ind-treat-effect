@@ -48,9 +48,8 @@ generate_true_sample <- function(m, p, tau, rho) {
 #' @param m Sample size
 #' @param alpha Significance level
 #' @return List containing bounds, data, and observed outcomes
-get_bounds <- function(m = 3000, p = 0.6, alpha = 0.1, 
-                       rho = 0.4,tau = 1,
-                       tight_bounds = FALSE) {
+get_bounds <- function(m = 300, p = 0.6, alpha = 0.1, 
+                       rho = 0.4,tau = 1) {
   
   # Generate true sample data
   data_truth <- generate_true_sample(m, p = p, tau = tau, rho = rho)
@@ -61,25 +60,24 @@ get_bounds <- function(m = 3000, p = 0.6, alpha = 0.1,
   obs_Y1 <- data_truth$Y[data_truth$Z == 1]
 
   # ECDF 0 and evaluation
-  ecdf_fn0 <- ecdf_deterministic(obs_Y0, n = m,p = 1-p)
+
+  #ecdf_fn0 <- ecdf_deterministic(obs_Y0, n = m,p = 1-p)
+  ecdf_fn0 <- ecdf(obs_Y0)
   obs_Y0_sorted <- sort(obs_Y0)
   ecdf_Y0_sorted <- ecdf_fn0(obs_Y0_sorted)
   
   # ECDF 1 and evaluation
-  ecdf_fn1 <- ecdf_deterministic(obs_Y1,n = m, p = p)
+  #ecdf_fn1 <- ecdf_deterministic(obs_Y1,n = m, p = p)
+  ecdf_fn1 <- ecdf(obs_Y1)
   obs_Y1_sorted <- sort(obs_Y1)
   ecdf_Y1_sorted <- ecdf_fn1(obs_Y1_sorted)
   
   # Compute DKW bounds
-  eps1 <- sqrt(-log((alpha/2)/4)*8/(m*p))
-  eps0 <- sqrt(-log((alpha/2)/4)*8/(m*(1-p)))
+  # regular eps (tight)
+  eps1 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * p)))
+  eps0 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * (1-p))))
   eps <- eps1 + eps0
-  if(tight_bounds){
-    # regular eps (tight)
-    eps1 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * p)))
-    eps0 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * (1-p))))
-    eps <- eps1 + eps0
-  }
+
 
   
   u_bound_1 <- pmin(ecdf_Y1_sorted +eps, 1)

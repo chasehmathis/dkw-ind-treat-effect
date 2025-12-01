@@ -14,9 +14,9 @@ cat("Generating data and computing initial bounds...\n")
 # Define parameters as a list in R
 
 plot_all <- function(params){
-  
+
   result <- do.call(get_bounds, params)
-  
+ 
   # Extract results
   bounds <- result$bounds
   data <- result$data
@@ -28,125 +28,89 @@ plot_all <- function(params){
   cat("Computing Makarov bounds for all quantiles...\n")
   
   diff_bounds <- get_marakov_bounds_all_t(bounds, obs_Y1, obs_Y0, data)
-  fname <- paste0("cdf-m-", params$m, "p-", 
-                  params$p,"tight-", params$tight_bounds, ".png")
-  # Create dynamic title based on parameters
-  plot_title <- paste0("True ECDF of individual tau (m=", params$m, 
-                       ", p=", params$p, ", tight=", params$tight_bounds, ")")
-  png(paste0(plot.dir, fname))
-  plot.ecdf(data$tau, main = plot_title)
 
-  points(diff_bounds[,3], diff_bounds[,2], 
-         col = "red", pch = 16, cex = 0.3)
-  points(diff_bounds[,3], diff_bounds[,1], 
-         col = "blue", pch = 16, cex = 0.3)
-  
-  dev.off()
+  library(ggplot2)
+
+  fname <- paste0("cdf-m-", params$m, "-rho-", 
+                  params$rho, "-p-", params$p, "-tau-", params$tau, ".png")
+  # Dynamic title using current parameters
+  plot_title <- bquote("True ECDF of individual " * tau ~ 
+      "(" * m == .(params$m) * "," ~ p == .(params$p) * "," 
+      ~ rho == .(params$rho) * "," ~ tau == .(params$tau) * ")")
+
+  # Prepare ECDF data for ggplot
+  ecdf_vals <- ecdf(data$tau)
+  ecdf_data <- data.frame(
+    tau = sort(unique(data$tau)),
+    ecdf = ecdf_vals(sort(unique(data$tau)))
+  )
+
+  # Prepare bounds for ggplot
+  # diff_bounds columns: lower, upper, tau_grid (assumed from code)
+  bounds_df <- data.frame(
+    tau = diff_bounds[,3],
+    lower = diff_bounds[,1],
+    upper = diff_bounds[,2]
+  )
+
+  gg_cdf <- ggplot() +
+    geom_step(data = ecdf_data, aes(x = tau, y = ecdf), color = "#2C3E50", size = 1.1) +
+    geom_point(data = bounds_df, aes(x = tau, y = lower), 
+               color = "#2980B9", size = 1, alpha = 0.85, shape = 16) +
+    geom_point(data = bounds_df, aes(x = tau, y = upper), 
+               color = "#E74C3C", size = 1, alpha = 0.85, shape = 16) +
+    labs(
+      title = plot_title,
+      x = expression("Treatment Effect (" * tau * ")"),
+      y = expression("Empirical Cumulative Distribution Function"~(widehat(F)(tau))),
+      caption = "Blue: lower Makarov bound; Red: upper Makarov bound"
+    ) +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          plot.title = element_text(size = 16, family = "serif", face = "bold"),
+          axis.title.x = element_text(size = 14),
+          axis.title.y = element_text(size = 14),
+          plot.caption = element_text(size = 10, color = "gray50")
+    ) +
+    scale_y_continuous(limits = c(0, 1), expand = expansion(mult = c(0, 0.03))) + 
+    scale_x_continuous(limits = c(min(ecdf_data$tau) - 1, max(ecdf_data$tau) + 1))
+
+  ggsave(
+    filename = paste0(plot.dir, fname),
+    plot = gg_cdf,
+    width = 7,
+    height = 5,
+    dpi = 300
+  )
+
   cat("Saved plot to:", paste0(plot.dir, fname), "\n")
 
   
-  # # Compare with RIQITE method
-  # cat("Computing bounds using RIQITE method...\n")
-  # library(RIQITE)
-  # 
-  # ci6 <- ci_quantile(Z = data$Z, 
-  #                    Y = data$Y,
-  #                    alternative = "greater", 
-  #                    method.list = list(name = "Stephenson", s = 10),
-  #                    nperm = 1, 
-  #                    alpha = 0.1)
-  # 
-  # # Prepare plotting
-  # sorted_percentiles_lower <- c( sort(unique(diff_bounds[,1]), decreasing = TRUE))
-  # sorted_percentiles_upper <- c(sort(unique(diff_bounds[,2]), decreasing = TRUE))
-  # 
-  # grid <- expand.grid(sorted_percentiles_lower, sorted_percentiles_upper)
-  # X <- apply(grid, 1, \(x) which(x[1] == diff_bounds[,1] & x[2] == diff_bounds[,2]))
-  # # get min and max
-  # min_max <- function(data){
-  #   if(nrow(data) == 0){return(NA)}
-  #   min <- apply(data, 2, min)[3]
-  #   max <- apply(data, 2, max)[3]
-  #   c(data[1,1:2], min,max)
-  # }
-  # 
-  # # prepare for ranks 
-  # diff_bounds[,1:2] <- params$m*diff_bounds[,1:2]
-  # plot_bounds <- sapply(X, \(z) min_max(diff_bounds[z, , drop = F]))
-  # plot_bounds <-plot_bounds[!is.na(plot_bounds)]
-  # mintaus <- min(diff_bounds[,3]);
-  # maxtaus <- max(diff_bounds[,3])
-  # 
-  # # Create comparison plot
-  # fname <- paste0("m-", params$m, "p-", params$p,".png")
-# 
-  # png(fname)
-  # par(mfrow = c(1, 2))
-  # plot_quantile_CIs(ci6, 
-  #                   main = "Recent Method (Caughey et al.)",
-  #                   k_start = 0)
-  # 
-  # plot(NA,
-  #      xlab = expression("confidence"~"limit"~"for"~tau[(k)]),
-  #      ylab = "k",
-  #      xlim = c(mintaus, maxtaus),
-  #      ylim = c(0, nrow(data)),
-  #      main = "Our Closed Form Method (mirrored)")
-  # 
-  # for (idx in seq_along(plot_bounds)) {
-  #   
-  #   this_bound <- plot_bounds[[idx]]
-  #   go_through <- seq(this_bound[3], this_bound[4], length.out = 1e2)
-  #   
-  #   for (k in go_through) {
-  #         if (idx != length(plot_bounds)) {
-  #       points(k, this_bound[1], pch = 16, col = "black", cex = 0.6)
-  #     }
-  #     if (idx != 1) {
-  #       points(k, this_bound[2], pch = 16, col = "black", cex = 0.6)
-  #     }
-  #     
-  #     lines(c(k, k), c(this_bound[1], this_bound[2] + 1), col = "grey")
-  #   }
-  # }
-  # 
-  # dev.off()
-  
 }
+
 
 
 # FIGURE 1
-
-m <- c(5e3,1e4, 1e5)
-for(size in m){
-  
-  params <- list(
-    m = size,
-    p = 0.5,
-    alpha = 0.1,
-    tau = 1,
-    rho = 0.5,
-    tight_bounds = FALSE
-  )
-  plot_all(params)
-  
-}
-
-# FIGURE 3
 m <- c(1e2, 5e2, 1e3)
-for(size in m){
-  
-  params <- list(
-    m = size,
-    p = 0.5,
-    alpha = 0.1,
-    tau = 1,
-    rho = 0.5,
-    tight_bounds = TRUE
-  )
-  plot_all(params)
-  
+for(tau in seq(1,9, length = 3)){
+    for(rho in c(0.1, 0.3, 0.7)){
+      for(size in m){
+        
+        params <- list(
+          m = size,
+          p = p,
+          alpha = 0.1,
+          tau =tau,
+          rho = rho
+        )
+        plot_all(params)
+        
+      }
+  }
 }
+
+
+
 
 
 
