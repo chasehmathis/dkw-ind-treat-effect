@@ -782,4 +782,4 @@ The following object is masked from ‘package:DeclareDesign’:
 > 
 > proc.time()
    user  system elapsed 
-758.333   3.422 762.805 
+727.044   4.795 732.855 
