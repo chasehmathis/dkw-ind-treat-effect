@@ -49,7 +49,7 @@ The following object is masked from ‘package:DeclareDesign’:
 +   # Compute Makarov bounds for all t values
 +   diff_bounds <- get_marakov_bounds_all_t(bounds, obs_Y1, obs_Y0, data)
 + 
-+   quants_check <- seq(0,1,by = 0.25)
++   quants_check <- seq(0.1,1,by = 0.1)
 +   quants_true <- quantile(data$tau, quants_check)
 +   conf_int_idx <- lapply(quants_check, \(z) which(diff_bounds[,2] >= z))
 +   # just do lower bound since that is what riqite does well in 
@@ -665,62 +665,73 @@ The following object is masked from ‘package:DeclareDesign’:
 > library(ggplot2)
 > library(RColorBrewer)
 > 
-> plot_quantile_lower_bounds <- function(df, 
-+                                        facet_by = c("rho", "tau", "m", "p"), 
-+                                        legend.position = "bottom") {
+> plot_quantile_lower_bounds <- function(
++   df, 
++   facet_by = c("rho", "tau", "m", "p"), 
++   legend.position = "bottom"
++ ) {
 +   facet_by <- match.arg(facet_by)
-+   # Make factor for faceting, and get display values for plot
++   
++   # Clean up: factorize for facetting if needed
 +   if (facet_by %in% c("rho", "tau", "p")) {
 +     df[[facet_by]] <- as.factor(round(df[[facet_by]], 3))
-+   } 
-+   # Prepare tidy long format for plotting lower bounds per quantile and method
++   }
++   
++   # Create tidy long dataframe for plotting
++   methods <- c("Makarov LB", "RIQITE LB")
 +   plotdf <- data.frame(
-+     quantile = rep(df$quants_check, 2),
++     quantile    = rep(df$quants_check, 2),
 +     lower_bound = c(df$width_us, df$width_riqite),
-+     method = factor(rep(c("Makarov LB", "RIQITE LB"), each = nrow(df))),
-+     facet = rep(df[[facet_by]], 2)
++     method      = factor(rep(methods, each = nrow(df)), levels = methods),
++     facet       = rep(df[[facet_by]], 2)
 +   )
-+   # infinite to NA for plot
-+   plotdf$lower_bound[is.infinite(plotdf$lower_bound)] <- NA
-+ 
-+   # Fixes for color and shape. Ensure color and shape map to `method`
-+   point_shapes <- c("Makarov LB" = 21, "RIQITE LB" = 19)
-+   point_colors <- c("Makarov LB" = "#d95f02", "RIQITE LB" = "#1b9e77")
-+ 
-+   # Number line range heuristics: remove outliers, but allow -Inf, Inf
-+   min_lb <- suppressWarnings(min(plotdf$lower_bound, na.rm = TRUE))
-+   max_lb <- suppressWarnings(max(plotdf$lower_bound, na.rm = TRUE))
-+   range_lb <- range(c(-1, 1, min_lb, max_lb), na.rm = TRUE)
-+   # Pad plot axis if possible for floating -Inf, Inf
-+   eps <- (diff(range_lb) + 1) * 0.2
++   
++   # Visual settings
++   point_shapes <- c("Makarov LB" = 21, "RIQITE LB" = 4)
++   point_colors <- c("Makarov LB" = "#1b9e77", "RIQITE LB" = "#d95f02")
++   
++   # Compute finite lower/upper bounds; pad axis slightly
++   finite_lbs <- plotdf$lower_bound[is.finite(plotdf$lower_bound)]
++   min_lb <- suppressWarnings(min(finite_lbs, na.rm = TRUE))
++   max_lb <- suppressWarnings(max(finite_lbs, na.rm = TRUE))
++   eps <- (max_lb - min_lb) * 0.01
 +   axis_limits <- c(min_lb - eps, max_lb + eps)
 + 
-+   gg <- ggplot(plotdf, aes(y = quantile, x = lower_bound, color = method, shape = method, fill = method)) +
-+     # Draw thick number-line at each quantile across all methods
++   # Base plot
++   ggplot(plotdf, aes(y = quantile, x = lower_bound, color = method, shape = method, fill = method)) +
++     # Background number-line for each quantile/facet
 +     geom_segment(
-+       data = unique(plotdf[,c("quantile","facet")]), 
++       data = unique(plotdf[, c("quantile", "facet")]),
 +       aes(x = axis_limits[1], xend = axis_limits[2], y = quantile, yend = quantile),
 +       inherit.aes = FALSE, linewidth = 1.05, color = "#d5d5d5"
 +     ) +
-+     geom_point(size = 3.2, stroke = 1.15, aes(fill = method)) +
++     geom_point(
++       data = aggregate(lower_bound ~ quantile + method + facet, plotdf, mean),
++       aes(x = lower_bound, y = quantile, color = method, shape = method, fill = method),
++       size = 3.2, stroke = 1.15, inherit.aes = FALSE
++     ) +
 +     scale_shape_manual(values = point_shapes, name = "Method") +
 +     scale_color_manual(values = point_colors, name = "Method") +
 +     scale_fill_manual(values = point_colors, name = "Method") +
 +     scale_y_continuous(
-+       breaks = unique(plotdf$quantile),
++       breaks = sort(unique(plotdf$quantile)),
 +       labels = function(x) formatC(x, digits = 2, format = "f"),
 +       expand = expansion(mult = c(0.08, 0.12)),
 +       name = "Quantile Level"
 +     ) +
 +     scale_x_continuous(
-+       limits = axis_limits, name = "Lower Bound", oob = scales::oob_keep
++       limits = axis_limits,
++       oob = scales::oob_keep,
++       name = "Lower Bound",
++       breaks = c(-7, -5, 0, 5, 10),
++       labels = c("-Inf", -5, 0, 5, 10)
 +     ) +
 +     labs(
 +       title = "Quantile Lower Bounds by Method",
 +       subtitle = "Each row: quantile, Points: method lower bounds",
 +       x = "Lower Bound"
 +     ) +
-+     facet_wrap(vars(facet), ncol = 1, labeller = label_both) +
++     facet_wrap(vars(facet), ncol = 1, labeller = label_value) +
 +     theme_minimal(base_family = "serif") +
 +     theme(
 +       plot.background = element_rect(fill = "#fcfcff", color = NA),
@@ -737,7 +748,6 @@ The following object is masked from ‘package:DeclareDesign’:
 +       legend.text = element_text(size = 11),
 +       strip.text = element_text(size = 12, face = "bold")
 +     )
-+   return(gg)
 + }
 > # Save plots with ggsave, pretty themes
 > width_px <- 7
@@ -750,15 +760,26 @@ The following object is masked from ‘package:DeclareDesign’:
 +   plot = plot_quantile_lower_bounds(sim_results, facet_by = "m"),
 +   width = width_px, height = height_px, dpi = dpi_px
 + )
-Warning message:
-Removed 2072 rows containing missing values or values outside the scale range
-(`geom_point()`). 
 > ggsave(
 +   filename = paste0(plot.dir, "comparison-by-rho-study.png"),
-+   plot = plot_quantile_width(sim_results, facet_by = "rho"),
++   plot = plot_quantile_lower_bounds(sim_results, facet_by = "rho"),
 +   width = width_px, height = height_px, dpi = dpi_px
 + )
-Error in plot_quantile_width(sim_results, facet_by = "rho") : 
-  could not find function "plot_quantile_width"
-Calls: ggsave -> %||% -> calc_element -> plot_theme
-Execution halted
+> 
+> ggsave(
++   filename = paste0(plot.dir, "comparison-by-p-study.png"),
++   plot = plot_quantile_lower_bounds(sim_results, facet_by = "tau"),
++   width = width_px, height = height_px, dpi = dpi_px
++ )
+> 
+> 
+> 
+> # figure k
+> 
+> 
+> 
+> 
+> 
+> proc.time()
+   user  system elapsed 
+758.333   3.422 762.805 
