@@ -35,7 +35,7 @@ generate_true_sample <- function(m, p, tau, rho) {
         c(Y_Z_0, Y_Z_1) ~ mvrnorm(n = m, mu = c(0,tau), Sigma = matrix(c(1,rho,rho,1),2))
       )
     ) +
-    declare_assignment(Z = complete_ra(N = m, m = m/2)) + 
+    declare_assignment(Z = complete_ra(N = m, m = m*p)) + 
     declare_measurement(Y = reveal_outcomes(Y ~ Z))
   data_true <- draw_data(design)
   data_true[["tau"]] <- data_true$Y_Z_1 - data_true$Y_Z_0
@@ -48,7 +48,7 @@ generate_true_sample <- function(m, p, tau, rho) {
 #' @param m Sample size
 #' @param alpha Significance level
 #' @return List containing bounds, data, and observed outcomes
-get_bounds <- function(m = 300, p = 0.6, alpha = 0.1, 
+get_bounds <- function(m = 300, p = 0.5, alpha = 0.1, 
                        rho = 0.4,tau = 1) {
   
   # Generate true sample data

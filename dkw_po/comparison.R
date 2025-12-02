@@ -4,6 +4,7 @@ set.seed(123)
 
 source("generate.R")
 source("bounds.R")
+source("plot_quantile_CI_comparison.r")
 library(RIQITE)
 library(MASS)
 library(ggplot2)
@@ -44,8 +45,8 @@ compare_makarov_quantile <- function(params) {
       p = params$p,
       tau = params$tau,
       rho = params$rho,
-      width_us = unlist(conf_int_us),
-      width_riqite = conf_riqite$lower,
+      lower_us = unlist(conf_int_us),
+      lower_riqite = conf_riqite$lower,
       cover_us = cover_us,
       cover_riqite = cover_riqite,
       quants_check = quants_check
@@ -62,7 +63,7 @@ for(rho in c(0.1, 0.3, 0.7)){
       for (size in m) {
         params <- list(
           m = size,
-          p = 0.6,
+          p = 0.5,
           alpha = 0.1,
           tau = tau,
           rho = rho
@@ -93,118 +94,132 @@ sim_results <- sim_results |>
     )
   )
 
-library(ggplot2)
-library(RColorBrewer)
 
-plot_quantile_lower_bounds <- function(
-  df, 
-  facet_by = c("rho", "tau", "m", "p"), 
-  legend.position = "bottom"
-) {
-  facet_by <- match.arg(facet_by)
-  
-  # Clean up: factorize for facetting if needed
-  if (facet_by %in% c("rho", "tau", "p")) {
-    df[[facet_by]] <- as.factor(round(df[[facet_by]], 3))
-  }
-  
-  # Create tidy long dataframe for plotting
-  methods <- c("Makarov LB", "RIQITE LB")
-  plotdf <- data.frame(
-    quantile    = rep(df$quants_check, 2),
-    lower_bound = c(df$width_us, df$width_riqite),
-    method      = factor(rep(methods, each = nrow(df)), levels = methods),
-    facet       = rep(df[[facet_by]], 2)
+library(dplyr)
+library(purrr)
+
+# Get all unique values for m, rho, and tau from sim_results
+unique_m_vals <- sort(unique(sim_results$m))
+unique_rho_vals <- sort(unique(sim_results$rho))
+unique_tau_vals <- sort(unique(sim_results$tau))
+
+# For each parameter, compute mean lower_us and lower_riqite by quantile
+avg_quantile_results_m <- sim_results %>%
+  group_by(m, quants_check) %>%
+  dplyr::summarise(
+    lower_us = mean(lower_us, na.rm = TRUE),
+    lower_riqite = mean(lower_riqite, na.rm = TRUE),
+    .groups = "drop"
   )
-  
-  # Visual settings
-  point_shapes <- c("Makarov LB" = 21, "RIQITE LB" = 4)
-  point_colors <- c("Makarov LB" = "#1b9e77", "RIQITE LB" = "#d95f02")
-  
-  # Compute finite lower/upper bounds; pad axis slightly
-  finite_lbs <- plotdf$lower_bound[is.finite(plotdf$lower_bound)]
-  min_lb <- suppressWarnings(min(finite_lbs, na.rm = TRUE))
-  max_lb <- suppressWarnings(max(finite_lbs, na.rm = TRUE))
-  eps <- (max_lb - min_lb) * 0.01
-  axis_limits <- c(min_lb - eps, max_lb + eps)
 
-  # Base plot
-  ggplot(plotdf, aes(y = quantile, x = lower_bound, color = method, shape = method, fill = method)) +
-    # Background number-line for each quantile/facet
-    geom_segment(
-      data = unique(plotdf[, c("quantile", "facet")]),
-      aes(x = axis_limits[1], xend = axis_limits[2], y = quantile, yend = quantile),
-      inherit.aes = FALSE, linewidth = 1.05, color = "#d5d5d5"
-    ) +
-    geom_point(
-      data = aggregate(lower_bound ~ quantile + method + facet, plotdf, mean),
-      aes(x = lower_bound, y = quantile, color = method, shape = method, fill = method),
-      size = 3.2, stroke = 1.15, inherit.aes = FALSE
-    ) +
-    scale_shape_manual(values = point_shapes, name = "Method") +
-    scale_color_manual(values = point_colors, name = "Method") +
-    scale_fill_manual(values = point_colors, name = "Method") +
-    scale_y_continuous(
-      breaks = sort(unique(plotdf$quantile)),
-      labels = function(x) formatC(x, digits = 2, format = "f"),
-      expand = expansion(mult = c(0.08, 0.12)),
-      name = "Quantile Level"
-    ) +
-    scale_x_continuous(
-      limits = axis_limits,
-      oob = scales::oob_keep,
-      name = "Lower Bound",
-      breaks = c(-7, -5, 0, 5, 10),
-      labels = c("-Inf", -5, 0, 5, 10)
-    ) +
-    labs(
-      title = "Quantile Lower Bounds by Method",
-      subtitle = "Each row: quantile, Points: method lower bounds",
-      x = "Lower Bound"
-    ) +
-    facet_wrap(vars(facet), ncol = 1, labeller = label_value) +
-    theme_minimal(base_family = "serif") +
-    theme(
-      plot.background = element_rect(fill = "#fcfcff", color = NA),
-      panel.grid.minor = element_blank(),
-      panel.grid.major.x = element_line(color = "#ebebeb"),
-      panel.grid.major.y = element_line(color = "#e0e0ef"),
-      plot.title = element_text(size = 17, face = "bold"),
-      plot.subtitle = element_text(size = 12),
-      axis.title.x = element_text(size = 15),
-      axis.title.y = element_text(size = 15),
-      axis.text = element_text(size = 12),
-      legend.position = legend.position,
-      legend.title = element_text(size = 13),
-      legend.text = element_text(size = 11),
-      strip.text = element_text(size = 12, face = "bold")
-    )
-}
-# Save plots with ggsave, pretty themes
-width_px <- 7
-height_px <- 4.7
-dpi_px <- 320
+avg_quantile_results_rho <- sim_results %>%
+  group_by(rho, quants_check) %>%
+  dplyr::summarise(
+    lower_us = mean(lower_us, na.rm = TRUE),
+    lower_riqite = mean(lower_riqite, na.rm = TRUE),
+    .groups = "drop"
+  )
 
-# Figure 2
-ggsave(
-  filename = paste0(plot.dir, "comparison-by-size-study.png"),
-  plot = plot_quantile_lower_bounds(sim_results, facet_by = "m"),
-  width = width_px, height = height_px, dpi = dpi_px
-)
-ggsave(
-  filename = paste0(plot.dir, "comparison-by-rho-study.png"),
-  plot = plot_quantile_lower_bounds(sim_results, facet_by = "rho"),
-  width = width_px, height = height_px, dpi = dpi_px
-)
+avg_quantile_results_tau <- sim_results %>%
+  group_by(tau, quants_check) %>%
+  dplyr::summarise(
+    lower_us = mean(lower_us, na.rm = TRUE),
+    lower_riqite = mean(lower_riqite, na.rm = TRUE),
+    .groups = "drop"
+  )
 
-ggsave(
-  filename = paste0(plot.dir, "comparison-by-p-study.png"),
-  plot = plot_quantile_lower_bounds(sim_results, facet_by = "tau"),
-  width = width_px, height = height_px, dpi = dpi_px
-)
+# Set output directory for plots
+if (!dir.exists(plot.dir)) dir.create(plot.dir)
 
+# Plot for each m value and save (High Quality)
+plots_by_m <- map(unique_m_vals, function(m_val) {
+  m_result <- avg_quantile_results_m %>% filter(m == m_val)
+  riqite_list <- list(
+    lower = m_result$lower_riqite,
+    k = m_result$quants_check * m_val
+  )
+  us_list <- list(
+    lower = m_result$lower_us
+  )
+  plot_file <- file.path(plot.dir, sprintf("quantile_CI_comparison_m_%s.png", m_val))
+  png(
+    filename = plot_file,
+    width = 2400,           # Higher resolution
+    height = 1800,
+    units = "px",
+    res = 300,              # 300 DPI for publication quality
+    pointsize = 14
+  )
+  plot_quantile_CI_comparison(
+    riqite_list,
+    k_start = 1,
+    result2 = us_list,
+    xlim = c(0,6),
+    main = paste0("Quantile Confidence Intervals (m = ", m_val, ")")
+  )
+  dev.off()
+})
 
+# Plot for each rho value and save (High Quality)
+plots_by_rho <- map(unique_rho_vals, function(rho_val) {
+  rho_result <- avg_quantile_results_rho %>% filter(rho == rho_val)
+  riqite_list <- list(
+    lower = rho_result$lower_riqite,
+    k = rho_result$quants_check * 100 # or a typical N, just for display
+  )
+  us_list <- list(
+    lower = rho_result$lower_us
+  )
+  plot_file <- file.path(plot.dir, sprintf("quantile_CI_comparison_rho_%s.png", gsub("\\.", "_", as.character(rho_val))))
+  png(
+    filename = plot_file,
+    width = 2400,
+    height = 1800,
+    units = "px",
+    res = 300,
+    pointsize = 14
+  )
+  plot_quantile_CI_comparison(
+    riqite_list,
+    k_start = 1,
+    result2 = us_list,
+    xlim = c(0,6),
+    main = paste0("Quantile Confidence Intervals (rho = ", rho_val, ")")
+  )
+  dev.off()
+})
 
+# Plot for each tau value and save (High Quality)
+plots_by_tau <- map(unique_tau_vals, function(tau_val) {
+  tau_result <- avg_quantile_results_tau %>% filter(tau == tau_val)
+  riqite_list <- list(
+    lower = tau_result$lower_riqite,
+    k = tau_result$quants_check * 100 # or a typical N, just for display
+  )
+  us_list <- list(
+    lower = tau_result$lower_us
+  )
+  plot_file <- file.path(plot.dir, sprintf("quantile_CI_comparison_tau_%s.png", gsub("\\.", "_", as.character(tau_val))))
+  png(
+    filename = plot_file,
+    width = 2400,
+    height = 1800,
+    units = "px",
+    res = 300,
+    pointsize = 14
+  )
+  plot_quantile_CI_comparison(
+    riqite_list,
+    k_start = 1,
+    result2 = us_list,
+    xlim = c(tau_val-5, tau_val +3),
+    main = paste0("Quantile Confidence Intervals (tau = ", tau_val, ")")
+  )
+  dev.off()
+})
+
+# Optionally, print or save plots if running interactively.
+# If you want to save each plot, wrap the plotting call in png() or ggsave() as appropriate.
 # figure k
 
 
