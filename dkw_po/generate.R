@@ -31,11 +31,11 @@ generate_true_sample <- function(m, p, tau, rho) {
   design <-
     declare_model(
       N = m,
-      Z = rbinom(n = N, size = 1, prob = p),
       draw_multivariate(
         c(Y_Z_0, Y_Z_1) ~ mvrnorm(n = m, mu = c(0,tau), Sigma = matrix(c(1,rho,rho,1),2))
       )
     ) +
+    declare_assignment(Z = complete_ra(N = m, m = m/2)) + 
     declare_measurement(Y = reveal_outcomes(Y ~ Z))
   data_true <- draw_data(design)
   data_true[["tau"]] <- data_true$Y_Z_1 - data_true$Y_Z_0
@@ -74,8 +74,8 @@ get_bounds <- function(m = 300, p = 0.6, alpha = 0.1,
   
   # Compute DKW bounds
   # regular eps (tight)
-  eps1 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * p)))
-  eps0 <- sqrt(-log((alpha/2)/2) * (1/(2 * m * (1-p))))
+  eps1 <- sqrt(-log((alpha/2)/2) * (1/(2 * m/2)))
+  eps0 <- sqrt(-log((alpha/2)/2) * (1/(2 * m/2)))
   eps <- eps1 + eps0
 
 
