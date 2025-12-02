@@ -85,14 +85,6 @@ for(rho in c(0.1, 0.3, 0.7)){
 # Optionally, save results to a file
 write.csv(sim_results, file = "makarov_quantile_sim_results.csv", row.names = FALSE)
 
-sim_results <- sim_results |> 
-  dplyr::mutate(
-    percent_improvement = ifelse(
-      is.infinite(width_riqite),
-      Inf,
-      100 * (width_us - width_riqite) / abs(width_riqite)
-    )
-  )
 
 
 library(dplyr)
