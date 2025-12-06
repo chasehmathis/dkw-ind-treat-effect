@@ -1,0 +1,126 @@
+---
+title: "DKW Confidence Bands"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{DKW Confidence Bands}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+## The DKW Inequality
+
+The Dvoretzky-Kiefer-Wolfowitz inequality provides non-parametric confidence bands for the empirical CDF:
+
+$$P\left(\sup_x |F_n(x) - F(x)| > \epsilon\right) \leq 2\exp(-2n\epsilon^2)$$
+
+```{r load}
+library(dkw)
+```
+
+## Computing DKW Bands
+
+```{r dkw-example}
+set.seed(123)
+
+# Generate sample from standard normal
+n <- 200
+x <- rnorm(n)
+
+# Compute ECDF
+x_sorted <- sort(x)
+Fhat <- ecdf(x)(x_sorted)
+
+# Compute 95% DKW bands
+bands <- dkw_band(Fhat, alpha = 0.05, n = n)
+
+cat("DKW bandwidth (epsilon):", round(bands$epsilon, 4), "\n")
+```
+
+## Visualizing DKW Bands
+
+```{r plot-dkw}
+# Plot ECDF with bands
+plot(x_sorted, Fhat, type = "s", lwd = 2,
+     ylim = c(0, 1), xlab = "x", ylab = "F(x)",
+     main = "DKW Confidence Bands (95%)")
+
+# Add bands
+lines(x_sorted, bands$lower, col = "red", lty = 2, lwd = 2)
+lines(x_sorted, bands$upper, col = "red", lty = 2, lwd = 2)
+
+# Add true CDF for comparison
+curve(pnorm(x), add = TRUE, col = "blue", lwd = 2)
+
+legend("bottomright",
+       c("Empirical CDF", "DKW Bands", "True CDF"),
+       col = c("black", "red", "blue"),
+       lty = c(1, 2, 1), lwd = 2)
+```
+
+## Effect of Sample Size
+
+```{r sample-size-effect, fig.height=4}
+par(mfrow = c(1, 3))
+
+for (n in c(50, 200, 1000)) {
+  x <- rnorm(n)
+  x_sorted <- sort(x)
+  Fhat <- ecdf(x)(x_sorted)
+  bands <- dkw_band(Fhat, alpha = 0.05, n = n)
+
+  plot(x_sorted, Fhat, type = "s", ylim = c(0, 1),
+       main = paste("n =", n), xlab = "x", ylab = "F(x)")
+  lines(x_sorted, bands$lower, col = "red", lty = 2)
+  lines(x_sorted, bands$upper, col = "red", lty = 2)
+  curve(pnorm(x), add = TRUE, col = "blue")
+}
+```
+
+## DKW Bands for Treatment/Control Groups
+
+```{r treatment-control}
+# Generate treatment experiment data
+result <- get_bounds(m = 200, p = 0.5, alpha = 0.1, tau = 2, rho = 0.3)
+
+# Compute separate DKW bounds
+dkw_result <- compute_dkw_bounds(
+  obs_Y1 = result$obs_Y1,
+  obs_Y0 = result$obs_Y0,
+  alpha = 0.1
+)
+
+cat("Treatment group (n =", length(result$obs_Y1), "):\n")
+cat("  Bandwidth:", round(dkw_result$epsilon1, 4), "\n")
+
+cat("Control group (n =", length(result$obs_Y0), "):\n")
+cat("  Bandwidth:", round(dkw_result$epsilon0, 4), "\n")
+```
+
+## Plotting Both Groups
+
+```{r plot-both-groups, fig.height=4}
+par(mfrow = c(1, 2))
+
+# Treatment group
+Y1_sorted <- dkw_result$obs_Y1_sorted
+plot(Y1_sorted, dkw_result$ecdf_Y1, type = "s",
+     main = "Treatment Group", xlab = "Y(1)", ylab = "F(y)")
+lines(Y1_sorted, dkw_result$bounds[[2]], col = "blue", lty = 2)
+lines(Y1_sorted, dkw_result$bounds[[1]], col = "red", lty = 2)
+
+# Control group
+Y0_sorted <- dkw_result$obs_Y0_sorted
+plot(Y0_sorted, dkw_result$ecdf_Y0, type = "s",
+     main = "Control Group", xlab = "Y(0)", ylab = "F(y)")
+lines(Y0_sorted, dkw_result$bounds[[4]], col = "blue", lty = 2)
+lines(Y0_sorted, dkw_result$bounds[[3]], col = "red", lty = 2)
+```

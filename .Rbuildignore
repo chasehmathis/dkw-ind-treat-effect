@@ -1,0 +1,13 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.git$
+^\.gitignore$
+^docs$
+^output$
+^scripts$
+^src$
+^riqite-supp$
+^README\.md$
+^REORGANIZATION_SUMMARY\.md$
+^\.DS_Store$
+^\.Rhistory$

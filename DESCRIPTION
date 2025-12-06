@@ -1,0 +1,32 @@
+Package: dkw
+Title: DKW and Makarov Bounds for Individual Treatment Effect Distributions
+Version: 0.1.0
+Authors@R: c(
+    person("Chase", "Mathis", email = "cmathis@berkeley.edu", role = c("aut", "cre"))
+  )
+Description: Implements Dvoretzky-Kiefer-Wolfowitz (DKW) confidence bands for
+    empirical cumulative distribution functions and Makarov bounds for individual
+    treatment effect distributions. Provides tools for non-parametric inference
+    on treatment effects in randomized experiments, including hybrid bounds
+    combining Simes and Dempster methods for sharper confidence sets.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.0
+Imports:
+    stats,
+    graphics
+Suggests:
+    DeclareDesign,
+    MASS,
+    RIQITE,
+    ggplot2,
+    dplyr,
+    purrr,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+URL: https://github.com/chasehmathis/dkw
+BugReports: https://github.com/chasehmathis/dkw/issues

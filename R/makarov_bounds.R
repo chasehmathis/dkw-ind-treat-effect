@@ -1,0 +1,342 @@
+#' Evaluate DKW Bounds for Treatment Group ECDF
+#'
+#' Evaluates the pre-computed DKW confidence bounds for the treatment group
+#' (Y1) empirical CDF at specified points.
+#'
+#' @param x Numeric vector. Points at which to evaluate the bounds.
+#' @param bounds List. Pre-computed DKW bounds from \code{\link{compute_dkw_bounds}}.
+#' @param obs_Y1 Numeric vector. Sorted observed outcomes in treatment group.
+#'
+#' @return A matrix with two columns: lower bound and upper bound for each x.
+#'
+#' @details
+#' Uses \code{findInterval} for efficient lookup, which is O(n log n) compared
+#' to O(n^2) for naive approaches.
+#'
+#' @keywords internal
+ecdf_Y1_bound <- function(x, bounds, obs_Y1) {
+  u_bound_1 <- bounds[[1]]
+  l_bound_1 <- bounds[[2]]
+
+  n <- length(obs_Y1)
+
+  # Use findInterval for efficient lookup
+  idx <- findInterval(x, obs_Y1)
+  below_min <- (idx == 0)
+  above_max <- (idx == n & x > obs_Y1[n])
+
+  # Handle boundary cases
+  idx[below_min] <- n + 1
+  idx[above_max] <- n + 2
+
+  cbind(l_bound_1[idx], u_bound_1[idx])
+}
+
+
+#' Evaluate DKW Bounds for Control Group ECDF
+#'
+#' Evaluates the pre-computed DKW confidence bounds for the control group
+#' (Y0) empirical CDF at specified points.
+#'
+#' @param x Numeric vector. Points at which to evaluate the bounds.
+#' @param bounds List. Pre-computed DKW bounds from \code{\link{compute_dkw_bounds}}.
+#' @param obs_Y0 Numeric vector. Sorted observed outcomes in control group.
+#'
+#' @return A matrix with two columns: lower bound and upper bound for each x.
+#'
+#' @keywords internal
+ecdf_Y0_bound <- function(x, bounds, obs_Y0) {
+  u_bound_0 <- bounds[[3]]
+  l_bound_0 <- bounds[[4]]
+
+  n <- length(obs_Y0)
+
+  idx <- findInterval(x, obs_Y0)
+  below_min <- (idx == 0)
+  above_max <- (idx == n & x > obs_Y0[n])
+
+  idx[below_min] <- n + 1
+  idx[above_max] <- n + 2
+
+  cbind(l_bound_0[idx], u_bound_0[idx])
+}
+
+
+#' Compute Makarov Bounds at a Single Treatment Effect Value
+#'
+#' Computes the Makarov bounds on the CDF of individual treatment effects
+#' at a specific value t.
+#'
+#' @param t Numeric. Treatment effect value at which to compute bounds.
+#' @param bounds List. Pre-computed DKW bounds from \code{\link{compute_dkw_bounds}}.
+#' @param obs_Y1 Numeric vector. Sorted observed outcomes in treatment group.
+#' @param obs_Y0 Numeric vector. Sorted observed outcomes in control group.
+#' @param min_Y1 Numeric or NULL. Pre-computed minimum of obs_Y1 (for efficiency).
+#' @param max_Y1 Numeric or NULL. Pre-computed maximum of obs_Y1 (for efficiency).
+#' @param grid_width Numeric. Step size for evaluation grid. Default is 0.005.
+#' @param grid_padding Numeric. Padding beyond data range. Default is 15.
+#'
+#' @return A numeric vector of length 3: (lower_bound, upper_bound, t).
+#'
+#' @details
+#' The Makarov bounds are derived from the inequality:
+#' \deqn{F_\tau(t) = P(\tau \leq t) = P(Y_1 - Y_0 \leq t)}
+#'
+#' Using the marginal CDFs of Y1 and Y0 with DKW confidence bands:
+#' \deqn{L(t) = \sup_x \max(0, \underline{F}_1(x) - \overline{F}_0(x-t))}
+#' \deqn{U(t) = \inf_x \min(1, \overline{F}_1(x) - \underline{F}_0(x-t) + 1)}
+#'
+#' where underlined and overlined quantities denote lower and upper DKW bounds.
+#'
+#' @references
+#' Makarov, G. D. (1982). Estimates for the distribution function of the sum
+#' of two random variables with given marginal distributions. Theory of
+#' Probability & Its Applications, 26(4), 803-806.
+#'
+#' @keywords internal
+makarov_bounds_t <- function(t, bounds, obs_Y1, obs_Y0,
+                              min_Y1 = NULL, max_Y1 = NULL,
+                              grid_width = 0.005, grid_padding = 15) {
+  # Use pre-computed min/max if provided
+  if (is.null(min_Y1)) min_Y1 <- min(obs_Y1)
+  if (is.null(max_Y1)) max_Y1 <- max(obs_Y1)
+
+  # Create evaluation grid
+  min_grid <- min_Y1 - grid_padding - abs(t)
+  max_grid <- max_Y1 + grid_padding + abs(t)
+  x <- seq(min_grid, max_grid, by = grid_width)
+
+  # Evaluate bounds at grid points
+  Y1_bound <- ecdf_Y1_bound(x, bounds, obs_Y1)
+  Y0_bound <- ecdf_Y0_bound(x - t, bounds, obs_Y0)
+
+  # Compute Makarov bounds via sup/inf arguments
+  lower_arg <- pmax(Y1_bound[, 1] - Y0_bound[, 2], 0)
+  upper_arg <- pmin(Y1_bound[, 2] - Y0_bound[, 1] + 1, 1)
+
+  l_bound <- max(lower_arg)
+  u_bound <- min(upper_arg)
+
+  c(l_bound, u_bound, t)
+}
+
+
+#' Compute Makarov Bounds for Treatment Effect Distribution
+#'
+#' Computes Makarov bounds on the CDF of individual treatment effects
+#' over a grid of treatment effect values.
+#'
+#' @param bounds List. Pre-computed DKW bounds from \code{\link{compute_dkw_bounds}}
+#'   or \code{\link{get_bounds}}.
+#' @param obs_Y1 Numeric vector. Observed outcomes in treatment group.
+#' @param obs_Y0 Numeric vector. Observed outcomes in control group.
+#' @param t_range Numeric vector of length 2. Range of treatment effect values
+#'   to evaluate. Default is c(-20, 20).
+#' @param n_points Integer. Number of evaluation points. Default is 1000.
+#' @param grid_width Numeric. Step size for inner evaluation grid. Default is 0.005.
+#'
+#' @return A matrix with n_points rows and 3 columns:
+#'   \describe{
+#'     \item{Column 1}{Lower bound on CDF at each t value.}
+#'     \item{Column 2}{Upper bound on CDF at each t value.}
+#'     \item{Column 3}{Treatment effect value t.}
+#'   }
+#'
+#' @details
+#' This function computes sharp non-parametric bounds on the distribution
+#' of individual treatment effects \eqn{\tau_i = Y_i(1) - Y_i(0)} using only
+#' the marginal distributions of observed outcomes.
+#'
+#' The bounds are computed by combining DKW confidence bands for the
+#' treatment and control group ECDFs via the Makarov inequality.
+#'
+#' @examples
+#' # Generate data
+#' set.seed(123)
+#' result <- get_bounds(m = 200, p = 0.5, alpha = 0.1, rho = 0.3, tau = 2)
+#'
+#' # Add boundary values to bounds (required for edge cases)
+#' bounds_ext <- lapply(result$bounds, function(z) c(z, 0, 1))
+#'
+#' # Compute Makarov bounds
+#' makarov <- get_makarov_bounds(
+#'   bounds = bounds_ext,
+#'   obs_Y1 = sort(result$obs_Y1),
+#'   obs_Y0 = sort(result$obs_Y0)
+#' )
+#'
+#' # Plot bounds against true ECDF
+#' plot(ecdf(result$data$tau), main = "Makarov Bounds on Treatment Effect CDF")
+#' points(makarov[, 3], makarov[, 1], col = "blue", pch = 16, cex = 0.3)
+#' points(makarov[, 3], makarov[, 2], col = "red", pch = 16, cex = 0.3)
+#'
+#' @export
+get_makarov_bounds <- function(bounds, obs_Y1, obs_Y0,
+                                t_range = c(-20, 20),
+                                n_points = 1000,
+                                grid_width = 0.005) {
+  # Extend bounds with boundary values if not already extended
+  if (length(bounds[[1]]) == length(obs_Y1)) {
+    bounds <- lapply(bounds, function(z) c(z, 0, 1))
+  }
+
+  # Sort observations
+  obs_Y1 <- sort(obs_Y1)
+  obs_Y0 <- sort(obs_Y0)
+
+  # Create evaluation grid for treatment effects
+  t_vals <- seq(t_range[1], t_range[2], length.out = n_points)
+
+  # Pre-allocate result matrix
+  res_bounds <- matrix(nrow = n_points, ncol = 3)
+
+  # Pre-compute min/max for efficiency
+  min_Y1 <- min(obs_Y1)
+  max_Y1 <- max(obs_Y1)
+
+  # Compute bounds at each t value
+  for (i in seq_along(t_vals)) {
+    res_bounds[i, ] <- makarov_bounds_t(
+      t = t_vals[i],
+      bounds = bounds,
+      obs_Y1 = obs_Y1,
+      obs_Y0 = obs_Y0,
+      min_Y1 = min_Y1,
+      max_Y1 = max_Y1,
+      grid_width = grid_width
+    )
+  }
+
+  colnames(res_bounds) <- c("lower", "upper", "t")
+  res_bounds
+}
+
+
+#' Compute Makarov Bounds from Raw Data
+#'
+#' High-level function that computes Makarov bounds on the treatment effect
+#' distribution directly from treatment and control group outcomes.
+#'
+#' @param Y1 Numeric vector. Observed outcomes for treatment group.
+#' @param Y0 Numeric vector. Observed outcomes for control group.
+#' @param alpha Numeric in (0, 1). Significance level. Default is 0.1.
+#' @param finite_pop Logical. Apply finite population correction. Default is TRUE.
+#' @param t_range Numeric vector of length 2. Range of treatment effect values.
+#'   Default is NULL (auto-determined from data).
+#' @param n_points Integer. Number of evaluation points. Default is 1000.
+#'
+#' @return A list with components:
+#'   \describe{
+#'     \item{bounds_matrix}{Matrix of Makarov bounds (see \code{\link{get_makarov_bounds}}).}
+#'     \item{dkw_bounds}{DKW bounds for marginal ECDFs.}
+#'     \item{alpha}{Significance level used.}
+#'   }
+#'
+#' @examples
+#' # Simulate treatment and control outcomes
+#' set.seed(42)
+#' Y1 <- rnorm(100, mean = 1.5, sd = 1)
+#' Y0 <- rnorm(100, mean = 0, sd = 1)
+#'
+#' # Compute Makarov bounds
+#' result <- makarov_bounds(Y1, Y0, alpha = 0.1)
+#'
+#' # Plot
+#' plot(result$bounds_matrix[, "t"], result$bounds_matrix[, "lower"],
+#'      type = "l", col = "blue", ylim = c(0, 1),
+#'      xlab = "Treatment Effect", ylab = "CDF")
+#' lines(result$bounds_matrix[, "t"], result$bounds_matrix[, "upper"],
+#'       col = "red")
+#' legend("topleft", c("Lower", "Upper"), col = c("blue", "red"), lty = 1)
+#'
+#' @export
+makarov_bounds <- function(Y1, Y0, alpha = 0.1, finite_pop = TRUE,
+                           t_range = NULL, n_points = 1000) {
+  # Compute DKW bounds
+  dkw_result <- compute_dkw_bounds(Y1, Y0, alpha = alpha, finite_pop = finite_pop)
+
+  # Auto-determine t_range if not provided
+  if (is.null(t_range)) {
+    y_range <- range(c(Y1, Y0))
+    spread <- diff(y_range)
+    t_range <- c(-spread - 5, spread + 5)
+  }
+
+  # Extend bounds for edge cases
+  bounds_ext <- lapply(dkw_result$bounds, function(z) c(z, 0, 1))
+
+  # Compute Makarov bounds
+  bounds_matrix <- get_makarov_bounds(
+    bounds = bounds_ext,
+    obs_Y1 = dkw_result$obs_Y1_sorted,
+    obs_Y0 = dkw_result$obs_Y0_sorted,
+    t_range = t_range,
+    n_points = n_points
+  )
+
+  list(
+    bounds_matrix = bounds_matrix,
+    dkw_bounds = dkw_result,
+    alpha = alpha
+  )
+}
+
+
+#' Extract Quantile Confidence Intervals from Makarov Bounds
+#'
+#' Extracts lower confidence limits for specific quantiles of the treatment
+#' effect distribution from Makarov bounds.
+#'
+#' @param makarov_result Object returned by \code{\link{makarov_bounds}} or
+#'   a matrix from \code{\link{get_makarov_bounds}}.
+#' @param quantiles Numeric vector. Quantiles to extract (in [0, 1]).
+#'   Default is \code{seq(0.1, 1, by = 0.1)}.
+#'
+#' @return A data frame with columns:
+#'   \describe{
+#'     \item{quantile}{Requested quantile.}
+#'     \item{lower_ci}{Lower confidence limit for the quantile.}
+#'   }
+#'
+#' @details
+#' For a quantile q, the lower confidence limit is the largest t such that
+#' the upper Makarov bound is at least q:
+#' \deqn{\underline{\tau}_{(q)} = \max\{t : \bar{F}_\tau(t) \geq q\}}
+#'
+#' @examples
+#' set.seed(42)
+#' Y1 <- rnorm(100, mean = 1.5)
+#' Y0 <- rnorm(100, mean = 0)
+#'
+#' result <- makarov_bounds(Y1, Y0, alpha = 0.1)
+#' quantile_ci <- extract_quantile_ci(result)
+#' print(quantile_ci)
+#'
+#' @export
+extract_quantile_ci <- function(makarov_result, quantiles = seq(0.1, 1, by = 0.1)) {
+  # Handle both list and matrix input
+  if (is.list(makarov_result) && "bounds_matrix" %in% names(makarov_result)) {
+    bounds_matrix <- makarov_result$bounds_matrix
+  } else {
+    bounds_matrix <- makarov_result
+  }
+
+  # Compute naive bounds for fallback
+  naive_l <- min(bounds_matrix[, "t"])
+  naive_u <- max(bounds_matrix[, "t"])
+  # Extract lower CI for each quantile
+  ci <- vapply(quantiles, function(q) {
+    idx <- which(bounds_matrix[,"upper"] > q & bounds_matrix[,"lower"] < q)
+    if (length(idx) == 0) {
+      return(c(naive_l, naive_u))
+    }
+    c(min(bounds_matrix[idx, "t"]), max(bounds_matrix[idx, "t"]))
+  }, numeric(2))
+  
+
+  data.frame(
+    k = quantiles, # k quantiles rank
+    lower = ci[1,],
+    upper = ci[2,]
+  )
+}

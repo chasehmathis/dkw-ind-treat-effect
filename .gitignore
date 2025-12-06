@@ -1,4 +1,17 @@
+# R-specific files
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+
+# macOS
+.DS_Store
+
+# Output files (optionally tracked)
+output/plots/*.png
+output/plots/*.pdf
+output/data/*.csv
+output/slurm_logs/*.out
+
+# Large files
+*.pptx

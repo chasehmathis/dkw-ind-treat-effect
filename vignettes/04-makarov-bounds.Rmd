@@ -1,0 +1,162 @@
+---
+title: "Makarov Bounds for Treatment Effects"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Makarov Bounds for Treatment Effects}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+## The Makarov Inequality
+
+Makarov bounds provide sharp bounds on the CDF of the sum (or difference) of two random variables given only their marginal distributions.
+
+For treatment effects $\tau_i = Y_i(1) - Y_i(0)$:
+
+$$L(t) = \sup_x \max\left(0, F_1(x) - F_0(x-t)\right)$$
+$$U(t) = \inf_x \min\left(1, F_1(x) - F_0(x-t) + 1\right)$$
+
+```{r load}
+library(dkw)
+```
+
+## Computing Makarov Bounds
+
+```{r basic-makarov}
+set.seed(123)
+
+# Simulate experiment
+Y1 <- rnorm(150, mean = 2, sd = 1)    # Treatment outcomes
+Y0 <- rnorm(150, mean = 0, sd = 1)    # Control outcomes
+
+# Compute Makarov bounds
+result <- makarov_bounds(Y1, Y0, alpha = 0.1)
+
+# Structure of result
+names(result)
+dim(result$bounds_matrix)
+```
+
+## Visualizing the Bounds
+
+```{r plot-makarov}
+bounds <- result$bounds_matrix
+
+plot(bounds[, "t"], bounds[, "upper"],
+     type = "l", col = "red", lwd = 2,
+     ylim = c(0, 1),
+     xlab = "Treatment Effect (t)",
+     ylab = "CDF Bounds",
+     main = "Makarov Bounds on Treatment Effect Distribution")
+
+lines(bounds[, "t"], bounds[, "lower"], col = "blue", lwd = 2)
+
+# Add reference line at t = 0
+abline(v = 0, lty = 2, col = "gray")
+
+legend("bottomright",
+       c("Upper Bound", "Lower Bound"),
+       col = c("red", "blue"), lwd = 2)
+```
+
+## With True Treatment Effects (Simulation)
+
+When we simulate data, we can compare bounds to the true CDF:
+
+```{r with-true}
+set.seed(42)
+
+# Generate with known potential outcomes
+data <- generate_potential_outcomes(m = 300, tau = 1.5, rho = 0.4)
+
+# Extract observed outcomes
+Y1 <- data$Y[data$Z == 1]
+Y0 <- data$Y[data$Z == 0]
+
+# Compute bounds
+result <- makarov_bounds(Y1, Y0, alpha = 0.1)
+bounds <- result$bounds_matrix
+
+# Plot with true CDF
+plot(ecdf(data$tau), main = "Makarov Bounds vs True CDF",
+     xlab = "Treatment Effect", ylab = "CDF")
+
+lines(bounds[, "t"], bounds[, "lower"], col = "blue", lwd = 2)
+lines(bounds[, "t"], bounds[, "upper"], col = "red", lwd = 2)
+
+legend("bottomright",
+       c("True CDF", "Lower Bound", "Upper Bound"),
+       col = c("black", "blue", "red"), lwd = c(1, 2, 2))
+```
+
+## Quantile Confidence Intervals
+
+Extract confidence intervals for specific quantiles:
+
+```{r quantile-ci}
+# Get CIs for specific quantiles
+ci <- extract_quantile_ci(result, quantiles = c(0.1, 0.25, 0.5, 0.75, 0.9))
+print(ci)
+
+# Compare to true quantiles
+true_q <- quantile(data$tau, ci$quantile)
+
+comparison <- data.frame(
+  quantile = ci$quantile,
+  lower_ci = round(ci$lower_ci, 3),
+  true_value = round(true_q, 3),
+  covered = true_q >= ci$lower_ci
+)
+print(comparison)
+```
+
+## Effect of Sample Size
+
+```{r sample-size, fig.height=4}
+par(mfrow = c(1, 3))
+
+for (m in c(50, 200, 500)) {
+  d <- generate_potential_outcomes(m = m, tau = 2, rho = 0.3)
+  Y1 <- d$Y[d$Z == 1]
+  Y0 <- d$Y[d$Z == 0]
+
+  res <- makarov_bounds(Y1, Y0, alpha = 0.1)
+  b <- res$bounds_matrix
+
+  plot(ecdf(d$tau), main = paste("m =", m),
+       xlab = "Treatment Effect", ylab = "CDF")
+  lines(b[, "t"], b[, "lower"], col = "blue", lwd = 2)
+  lines(b[, "t"], b[, "upper"], col = "red", lwd = 2)
+}
+```
+
+## Effect of Correlation
+
+Higher correlation = looser bounds:
+
+```{r correlation, fig.height=4}
+par(mfrow = c(1, 3))
+
+for (rho in c(0.1, 0.5, 0.9)) {
+  d <- generate_potential_outcomes(m = 200, tau = 2, rho = rho)
+  Y1 <- d$Y[d$Z == 1]
+  Y0 <- d$Y[d$Z == 0]
+
+  res <- makarov_bounds(Y1, Y0, alpha = 0.1)
+  b <- res$bounds_matrix
+
+  plot(ecdf(d$tau), main = paste("rho =", rho),
+       xlab = "Treatment Effect", ylab = "CDF")
+  lines(b[, "t"], b[, "lower"], col = "blue", lwd = 2)
+  lines(b[, "t"], b[, "upper"], col = "red", lwd = 2)
+}
+```
