@@ -48,15 +48,18 @@
 #' lines(sort(x), bands$upper, col = "red", lty = 2)
 #'
 #' @export
-dkw_band <- function(Fhat, alpha = 0.05, n) {
+dkw_band <- function(Fhat, N, finite_pop = TRUE, alpha = 0.05) {
   if (alpha <= 0 || alpha >= 1) {
     stop("Significance level alpha must be in (0, 1)")
   }
   if (n < 1) {
     stop("Sample size n must be positive")
   }
-
+  n <- length(Fhat)
   epsilon <- sqrt(log(2 / alpha) / (2 * n))
+  if(finite_pop){
+    epsilon <- epsilon * sqrt(1 - (n - 1) / N)
+  }
 
   list(
     lower = pmax(Fhat - epsilon, 0),
@@ -122,30 +125,25 @@ compute_dkw_bounds <- function(obs_Y1, obs_Y0, alpha = 0.1, finite_pop = TRUE) {
   ecdf_Y1 <- ecdf_fn1(obs_Y1_sorted)
   ecdf_Y0 <- ecdf_fn0(obs_Y0_sorted)
 
+  
   # Compute DKW bandwidths
-  eps1 <- sqrt(log(2 / alpha) / (2 * n1))
-  eps0 <- sqrt(log(2 / alpha) / (2 * n0))
-
-  # Apply finite population correction if requested
-  if (finite_pop) {
-    eps1 <- eps1 * sqrt(1 - (n1 - 1) / m)
-    eps0 <- eps0 * sqrt(1 - (n0 - 1) / m)
-  }
-
+  # bound_1 <- dkw_band(ecdf_Y1, N = m, finite_pop = finite_pop, alpha = alpha)
+  # bound_0 <- dkw_band(ecdf_Y0, N = m, finite_pop = finite_pop, alpha = alpha)
+  # compute stronger hybrid bands
+  bound_1 <- hybrid_band(ecdf_Y1, m = m, finite_pop = finite_pop, alpha = alpha)
+  bound_0 <- hybrid_band(ecdf_Y0, m = m, finite_pop = finite_pop, alpha = alpha)
   # Compute bounds
-  u_bound_1 <- pmin(ecdf_Y1 + eps1, 1)
-  l_bound_1 <- pmax(ecdf_Y1 - eps1, 0)
-  u_bound_0 <- pmin(ecdf_Y0 + eps0, 1)
-  l_bound_0 <- pmax(ecdf_Y0 - eps0, 0)
+  u_bound_1 <- bound_1$upper
+  l_bound_1 <- bound_1$lower
+  u_bound_0 <- bound_0$upper
+  l_bound_0 <- bound_0$lower
 
   list(
     bounds = list(u_bound_1, l_bound_1, u_bound_0, l_bound_0),
     obs_Y1_sorted = obs_Y1_sorted,
     obs_Y0_sorted = obs_Y0_sorted,
     ecdf_Y1 = ecdf_Y1,
-    ecdf_Y0 = ecdf_Y0,
-    epsilon1 = eps1,
-    epsilon0 = eps0
+    ecdf_Y0 = ecdf_Y0
   )
 }
 

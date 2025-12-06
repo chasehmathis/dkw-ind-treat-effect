@@ -222,13 +222,19 @@ hybrid_lower <- function(Fhat, delta, m, b = 5 / m) {
 #'        lty = c(1, 1, 2))
 #'
 #' @export
-hybrid_band <- function(Fhat, alpha = 0.05, m, k = floor(m / 2), b = 5 / m) {
+hybrid_band <- function(Fhat,m, finite_pop = TRUE, alpha = 0.05, k = floor(m / 2), b = 5 / m) {
   delta <- alpha / 8
+  up_simes <- h_simes(Fhat, delta, m, k)
+  lower_simes <- 1-h_simes(1-Fhat, delta, m, k)
+  
+  upper_d <- 1-dempster_lower(1-Fhat, delta, m, b)
+  lower_d <- dempster_lower(Fhat, delta, m, b)
+  
+  dkw <- dkw_band(Fhat, N = m, alpha = alpha, finite_pop = finite_pop)
 
-  upper_h <- hybrid_upper(Fhat, delta, m, k)
-  lower_h <- hybrid_lower(Fhat, delta, m, b)
-  dkw <- dkw_band(Fhat, alpha, m)
-
+  upper_h <- pmin(up_simes, upper_d, dkw$upper)
+  lower_h <- pmax(lower_simes, lower_d, dkw$lower)
+  
   list(
     lower = lower_h,
     upper = upper_h,

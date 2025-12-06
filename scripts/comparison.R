@@ -16,6 +16,7 @@ if (!dir.exists(plot.dir)) dir.create(plot.dir, recursive = TRUE)
 if (!dir.exists(data.dir)) dir.create(data.dir, recursive = TRUE)
 
 compare_makarov_quantile <- function(params) {
+
   result <- get_bounds(
     m = params$m,
     p = params$p,

@@ -6,10 +6,8 @@ An R package implementing Dvoretzky-Kiefer-Wolfowitz (DKW) confidence bands for 
 
 ```r
 # Install from local directory
-devtools::install("path/to/dkw")
+devtools::install_github("chasehmathis/dkw-ind-treat-effect")
 
-# Or for development
-devtools::load_all("path/to/dkw")
 ```
 
 ## Quick Start
