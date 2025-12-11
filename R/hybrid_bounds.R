@@ -222,7 +222,7 @@ hybrid_lower <- function(Fhat, delta, m, b = 5 / m) {
 #'        lty = c(1, 1, 2))
 #'
 #' @export
-hybrid_band <- function(Fhat,m, finite_pop = TRUE, alpha = 0.05, k = floor(m / 2), b = 5 / m) {
+hybrid_band <- function(Fhat,m, finite_pop = FALSE, alpha = 0.05, k = floor(m / 2), b = 5 / m) {
   delta <- alpha / 8
   up_simes <- h_simes(Fhat, delta, m, k)
   lower_simes <- 1-h_simes(1-Fhat, delta, m, k)

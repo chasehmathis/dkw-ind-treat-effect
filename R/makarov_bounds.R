@@ -250,11 +250,14 @@ get_makarov_bounds <- function(bounds, obs_Y1, obs_Y0,
 #' legend("topleft", c("Lower", "Upper"), col = c("blue", "red"), lty = 1)
 #'
 #' @export
-makarov_bounds <- function(Y1, Y0, alpha = 0.1, finite_pop = TRUE,
-                           t_range = NULL, n_points = 1000) {
+makarov_bounds <- function(Y1, Y0, alpha = 0.1, finite_pop = FALSE,
+                           t_range = NULL, n_points = 1000, time_uniform = FALSE) {
   # Compute DKW bounds
-  dkw_result <- compute_dkw_bounds(Y1, Y0, alpha = alpha, finite_pop = finite_pop)
-
+  if(time_uniform){
+    dkw_result <- compute_time_uniform_bounds(Y1, Y0, alpha = alpha)
+  }else{
+    dkw_result <- compute_dkw_bounds(Y1, Y0, alpha = alpha, finite_pop = finite_pop)
+  }
   # Auto-determine t_range if not provided
   if (is.null(t_range)) {
     y_range <- range(c(Y1, Y0))
@@ -279,6 +282,68 @@ makarov_bounds <- function(Y1, Y0, alpha = 0.1, finite_pop = TRUE,
     dkw_bounds = dkw_result,
     alpha = alpha
   )
+}
+
+
+#' Compute Quantile Confidence Intervals from Observed Outcomes
+#'
+#' High-level convenience function that computes confidence intervals for
+#' quantiles of the treatment effect distribution directly from observed
+#' treatment and control outcomes.
+#'
+#' @param obs_Y1 Numeric vector. Observed outcomes for treatment group.
+#' @param obs_Y0 Numeric vector. Observed outcomes for control group.
+#' @param quantiles Numeric vector. Quantiles to compute CIs for (in [0, 1]).
+#'   Default is \code{seq(0.1, 1, by = 0.1)}.
+#' @param alpha Numeric in (0, 1). Significance level. Default is 0.1.
+#' @param finite_pop Logical. Apply finite population correction. Default is FALSE.
+#' @param t_range Numeric vector of length 2. Range of treatment effect values.
+#'   Default is NULL (auto-determined from data).
+#' @param n_points Integer. Number of evaluation points for Makarov bounds.
+#'   Default is 1000.
+#'
+#' @return A data frame with columns:
+#'   \describe{
+#'     \item{k}{Requested quantile.}
+#'     \item{lower}{Lower confidence limit for the quantile.}
+#'     \item{upper}{Upper confidence limit for the quantile.}
+#'   }
+#'
+#' @details
+#' This is a convenience wrapper that:
+#' \enumerate{
+#'   \item Computes DKW/hybrid confidence bands for treatment and control ECDFs
+#'   \item Computes Makarov bounds on the treatment effect CDF
+#'   \item Extracts confidence intervals for specified quantiles
+#' }
+#'
+#' @examples
+#' set.seed(42)
+#' Y1 <- rnorm(100, mean = 1.5)
+#' Y0 <- rnorm(100, mean = 0)
+#'
+#' # Get confidence intervals for deciles
+#' ci <- quantile_ci(Y1, Y0, alpha = 0.1)
+#' print(ci)
+#'
+#' @export
+quantile_ci <- function(obs_Y1, obs_Y0, quantiles = seq(0.1, 1, by = 0.1),
+                        alpha = 0.1, finite_pop = FALSE,
+                        t_range = NULL, n_points = 1000, time_uniform = FALSE) {
+  # Compute Makarov bounds
+
+  mak_result <- makarov_bounds(
+    Y1 = obs_Y1,
+    Y0 = obs_Y0,
+    alpha = alpha,
+    finite_pop = finite_pop,
+    t_range = t_range,
+    n_points = n_points,
+    time_uniform = time_uniform
+  )
+
+  # Extract quantile CIs
+  extract_quantile_ci(mak_result, quantiles = quantiles)
 }
 
 
@@ -326,7 +391,7 @@ extract_quantile_ci <- function(makarov_result, quantiles = seq(0.1, 1, by = 0.1
   naive_u <- max(bounds_matrix[, "t"])
   # Extract lower CI for each quantile
   ci <- vapply(quantiles, function(q) {
-    idx <- which(bounds_matrix[,"upper"] > q & bounds_matrix[,"lower"] < q)
+    idx <- which(bounds_matrix[,"upper"] >= q & bounds_matrix[,"lower"] < q)
     if (length(idx) == 0) {
       return(c(naive_l, naive_u))
     }

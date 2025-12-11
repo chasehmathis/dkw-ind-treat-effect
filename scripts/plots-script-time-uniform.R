@@ -1,4 +1,4 @@
-# Generate CDF plots across parameter grid
+# Generate CDF plots using time-uniform bounds across parameter grid
 
 library(dkw)
 library(ggplot2)
@@ -8,16 +8,16 @@ set.seed(123)
 plot.dir <- "output/plots/"
 if (!dir.exists(plot.dir)) dir.create(plot.dir, recursive = TRUE)
 
-cat("Generating CDF plots...\n")
+cat("Generating CDF plots with time-uniform bounds...\n")
 
-plot_all <- function(params) {
-  browser()
-  result <- get_bounds(
+plot_all_time_uniform <- function(params) {
+  result <- get_time_uniform_bounds(
     m = params$m,
     p = params$p,
     alpha = params$alpha,
     tau = params$tau,
-    rho = params$rho
+    rho = params$rho,
+    delta = params$delta
   )
 
   bounds <- result$bounds
@@ -27,13 +27,13 @@ plot_all <- function(params) {
 
   # Extend bounds and compute Makarov bounds
   bounds_ext <- lapply(bounds, function(z) c(z, 0, 1))
-  cat("Computing Makarov bounds...\n")
+  cat("Computing Makarov bounds with time-uniform CDF bands...\n")
   diff_bounds <- get_makarov_bounds(bounds_ext, obs_Y1, obs_Y0)
 
-  fname <- paste0("cdf-m-", params$m, "-rho-", params$rho,
+  fname <- paste0("cdf-tu-m-", params$m, "-rho-", params$rho,
                   "-p-", params$p, "-tau-", params$tau, ".png")
 
-  plot_title <- bquote("True ECDF of individual " * tau ~
+  plot_title <- bquote("Time-Uniform Bounds: ECDF of individual " * tau ~
     "(" * m == .(params$m) * "," ~ p == .(params$p) * "," ~
     rho == .(params$rho) * "," ~ tau == .(params$tau) * ")")
 
@@ -60,8 +60,8 @@ plot_all <- function(params) {
     labs(
       title = plot_title,
       x = expression("Treatment Effect (" * tau * ")"),
-      y = expression("ECDF " * (widehat(F)(tau))),
-      caption = "Blue: lower bound; Red: upper bound"
+      y = expression("Empirical Cumulative Distribution Function " * (widehat(F)(tau))),
+      caption = "Blue: lower Makarov bound; Red: upper Makarov bound"
     ) +
     theme_grey() +
     theme(
@@ -80,13 +80,12 @@ plot_all <- function(params) {
 
 # Generate plots for all parameter combinations
 m_vals <- c(100, 500, 1000)
-tau_vals <- seq(1, 9, length = 3)
 rho_vals <- c(0.1, 0.3, 0.7)
 
 for (rho in rho_vals) {
   for (m in m_vals) {
-    params <- list(m = m, p = 0.5, alpha = 0.1, tau = 1, rho = rho)
-    plot_all(params)
+    params <- list(m = m, p = 0.5, alpha = 0.1, tau = 1, rho = rho, delta = 0.5)
+    plot_all_time_uniform(params)
   }
 }
 

@@ -48,12 +48,9 @@
 #' lines(sort(x), bands$upper, col = "red", lty = 2)
 #'
 #' @export
-dkw_band <- function(Fhat, N, finite_pop = TRUE, alpha = 0.05) {
+dkw_band <- function(Fhat, N, finite_pop = FALSE, alpha = 0.05) {
   if (alpha <= 0 || alpha >= 1) {
     stop("Significance level alpha must be in (0, 1)")
-  }
-  if (n < 1) {
-    stop("Sample size n must be positive")
   }
   n <- length(Fhat)
   epsilon <- sqrt(log(2 / alpha) / (2 * n))
@@ -109,7 +106,7 @@ dkw_band <- function(Fhat, N, finite_pop = TRUE, alpha = 0.05) {
 #' result <- compute_dkw_bounds(Y1, Y0, alpha = 0.1)
 #'
 #' @export
-compute_dkw_bounds <- function(obs_Y1, obs_Y0, alpha = 0.1, finite_pop = TRUE) {
+compute_dkw_bounds <- function(obs_Y1, obs_Y0, alpha = 0.1, finite_pop = FALSE) {
   n1 <- length(obs_Y1)
   n0 <- length(obs_Y0)
   m <- n1 + n0
@@ -181,7 +178,7 @@ compute_dkw_bounds <- function(obs_Y1, obs_Y0, alpha = 0.1, finite_pop = TRUE) {
 #'
 #' @export
 get_bounds <- function(m = 300, p = 0.5, alpha = 0.1,
-                       rho = 0.4, tau = 1, finite_pop = TRUE) {
+                       rho = 0.4, tau = 1, finite_pop = FALSE) {
   # Generate data
 data <- generate_potential_outcomes(m = m, p = p, tau = tau, rho = rho)
 
