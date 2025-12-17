@@ -12,14 +12,16 @@ Description: Implements Dvoretzky-Kiefer-Wolfowitz (DKW) confidence bands for
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.0
+RoxygenNote: 7.3.2
 Imports:
     stats,
-    graphics
+    graphics,
+    randomizr,
+    fabricatr
 Suggests:
     DeclareDesign,
     MASS,
-    RIQITE,
+    RIQITE,    
     ggplot2,
     dplyr,
     purrr,

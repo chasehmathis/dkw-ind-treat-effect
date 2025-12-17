@@ -179,7 +179,7 @@ plot_makarov_bounds <- function(bounds_matrix, true_tau = NULL,
 #' set.seed(123)
 #' x <- sort(rnorm(100))
 #' Fhat <- ecdf(x)(x)
-#' bands <- dkw_band(Fhat, alpha = 0.05, n = 100)
+#' bands <- dkw_band(Fhat, alpha = 0.05)
 #'
 #' plot_dkw_bands(x, Fhat, bands$lower, bands$upper)
 #'

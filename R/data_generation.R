@@ -40,6 +40,9 @@
 #' # Check that observed outcomes match potential outcomes
 #' all(data$Y == ifelse(data$Z == 1, data$Y_Z_1, data$Y_Z_0))
 #'
+#' @importFrom randomizr complete_ra
+#' @importFrom fabricatr draw_multivariate
+#' @importFrom fabricatr reveal_outcomes
 #' @export
 generate_potential_outcomes <- function(m, p = 0.5, tau = 1, rho = 0.5) {
   if (!requireNamespace("DeclareDesign", quietly = TRUE)) {
@@ -64,8 +67,8 @@ generate_potential_outcomes <- function(m, p = 0.5, tau = 1, rho = 0.5) {
       )
     )
   ) +
-    DeclareDesign::declare_assignment(Z = randomizr::complete_ra(N = m, m = round(m * p))) +
-    DeclareDesign::declare_measurement(Y = fabricatr::reveal_outcomes(Y ~ Z))
+    DeclareDesign::declare_assignment(Z = complete_ra(N = m, m = round(m * p))) +
+    DeclareDesign::declare_measurement(Y = reveal_outcomes(Y ~ Z))
 
   data <- DeclareDesign::draw_data(design)
   data$tau <- data$Y_Z_1 - data$Y_Z_0

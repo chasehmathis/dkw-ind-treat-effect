@@ -26,6 +26,7 @@
 #'
 #' @seealso \code{\link{time_uniform_band}} for the main confidence band function
 #' @keywords internal
+#' @importFrom stats qlogis
 #' @export
 r_pt <- function(p, t) {
   if (p >= 0.5) {

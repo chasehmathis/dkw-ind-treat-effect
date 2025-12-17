@@ -6,7 +6,7 @@
 #'
 #' @param Fhat Numeric vector. Empirical CDF values at which to compute bounds.
 #' @param alpha Numeric in (0, 1). Significance level. Default is 0.05.
-#' @param n Integer. Sample size used to compute the ECDF.
+#' @param N Integer. Total population size if using Finite pop
 #'
 #' @return A list with components:
 #'   \describe{
@@ -40,7 +40,7 @@
 #' Fhat <- ecdf(x)(sort(x))
 #'
 #' # Compute 95% DKW bands
-#' bands <- dkw_band(Fhat, alpha = 0.05, n = 100)
+#' bands <- dkw_band(Fhat, alpha = 0.05)
 #'
 #' # Plot
 #' plot(sort(x), Fhat, type = "s", ylim = c(0, 1))
@@ -127,8 +127,8 @@ compute_dkw_bounds <- function(obs_Y1, obs_Y0, alpha = 0.1, finite_pop = FALSE) 
   # bound_1 <- dkw_band(ecdf_Y1, N = m, finite_pop = finite_pop, alpha = alpha)
   # bound_0 <- dkw_band(ecdf_Y0, N = m, finite_pop = finite_pop, alpha = alpha)
   # compute stronger hybrid bands
-  bound_1 <- hybrid_band(ecdf_Y1, m = m, finite_pop = finite_pop, alpha = alpha)
-  bound_0 <- hybrid_band(ecdf_Y0, m = m, finite_pop = finite_pop, alpha = alpha)
+  bound_1 <- hybrid_band(ecdf_Y1, finite_pop = finite_pop, alpha = alpha)
+  bound_0 <- hybrid_band(ecdf_Y0, finite_pop = finite_pop, alpha = alpha)
   # Compute bounds
   u_bound_1 <- bound_1$upper
   l_bound_1 <- bound_1$lower

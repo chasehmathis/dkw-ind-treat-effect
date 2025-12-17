@@ -183,10 +183,9 @@ hybrid_lower <- function(Fhat, delta, m, b = 5 / m) {
 #'
 #' @param Fhat Numeric vector. Empirical CDF values.
 #' @param alpha Numeric in (0, 1). Significance level. Default is 0.05.
-#' @param m Integer. Sample size.
 #' @param k Integer. Order parameter for Simes. Default is \code{floor(m/2)}.
 #' @param b Numeric. Slope parameter for Dempster. Default is \code{5/m}.
-#'
+#' @param N Integer. Total poppulation size if doing finite pop inference.
 #' @return A list with components:
 #'   \describe{
 #'     \item{lower}{Numeric vector of lower bounds.}
@@ -209,7 +208,7 @@ hybrid_lower <- function(Fhat, delta, m, b = 5 / m) {
 #' x <- sort(runif(n))
 #' Fhat <- ecdf(x)(x)
 #'
-#' bands <- hybrid_band(Fhat, alpha = 0.05, m = n)
+#' bands <- hybrid_band(Fhat, alpha = 0.05)
 #'
 #' plot(x, Fhat, type = "s", ylim = c(0, 1))
 #' lines(x, bands$lower, col = "red", lwd = 2)
@@ -222,15 +221,16 @@ hybrid_lower <- function(Fhat, delta, m, b = 5 / m) {
 #'        lty = c(1, 1, 2))
 #'
 #' @export
-hybrid_band <- function(Fhat,m, finite_pop = FALSE, alpha = 0.05, k = floor(m / 2), b = 5 / m) {
+hybrid_band <- function(Fhat, N, finite_pop = FALSE, alpha = 0.05, k = floor(m / 2), b = 5 / m) {
   delta <- alpha / 8
+  m <- length(Fhat)
   up_simes <- h_simes(Fhat, delta, m, k)
   lower_simes <- 1-h_simes(1-Fhat, delta, m, k)
   
   upper_d <- 1-dempster_lower(1-Fhat, delta, m, b)
   lower_d <- dempster_lower(Fhat, delta, m, b)
   
-  dkw <- dkw_band(Fhat, N = m, alpha = alpha, finite_pop = finite_pop)
+  dkw <- dkw_band(Fhat, N = N, alpha = alpha, finite_pop = finite_pop)
 
   upper_h <- pmin(up_simes, upper_d, dkw$upper)
   lower_h <- pmax(lower_simes, lower_d, dkw$lower)
